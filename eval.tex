@@ -5,6 +5,13 @@
   \centerline{\placeholder{Descriptive figure text goes here.}}
 
 \caption{A placeholder caption for a placeholder figure \boldmath$F$.}
-sdfsdf
+  \begin{itemize}
+    \item Does MD linearizability offer apps significantly lower e2e latency for realistic workloads compared to baselines?
+      \subitem How well does MD linearizability’s performance scale as we vary the number shards, clients, outstanding requests per client, contention factor, and inter-shard distance?
+    \item What kinds of applications/styles of programming benefit from MD linearizability and in what ways? How usable is MD linearizability?
+    \item What are the system limitations and deployment costs? At what point does the system start to degrade?
+    \item What additional cost do we pay for the correctness guarantees? What is the overhead that is added to MD-lin over a hypothetical 1/N factor speedup? How fast is MD-lin when a user behaves sequentially?
+
+  \end{itemize}
 \label{fig:placeholder}
 \end{figure}
