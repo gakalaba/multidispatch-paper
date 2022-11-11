@@ -35,7 +35,8 @@ The variables we vary:
     \item Fan-out
     \item Request arrival-time
     \item Inter-shard distance
-    \item Network lossyness?
+    \item Network lossiness?
+        \subitem This would highlight the overhead of buffering that happens with out of order packets for MD-lin, but it might not be interesting if the metric is e2e app-req latency
     \item Failure rate
 \end{itemize}
 To keep the load on the system the same between sdl and mdl, we increase the number of concurrent clients for sdl but keep it constant for mdl as the number of requests per client increases, keeping the overall number of requests sent to the system the same for both.
