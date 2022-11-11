@@ -22,7 +22,7 @@ We implement a MDL key-value store that uses MDL-Paxos per shard, and the multi-
 \end{itemize}
 \subsection{End-to-end Application Latency}
 \begin{figure}[!htb]
-\includegraphics[scale=.27]{e2e-with-contention.png}
+\includegraphics[scale=.32]{e2e-with-contention.png}
 \caption{Multi-sharded MDL with high contention.}
 \label{fig:e2e-contention}
 \end{figure}
@@ -48,7 +48,7 @@ Figure \ref{fig:e2e-contention} shows that in the former case, we expect signifi
 
 Figure \ref{fig:e2e-nocontention}, produced by distributing requests uniformly and keeping cross batch overlap minimal, shows that without contention, the system reorders requests much less frequently.
 \begin{figure}[!htb]
-\includegraphics[scale=.22]{e2e-wo-contention.png}
+\includegraphics[scale=.32]{e2e-wo-contention.png}
 \caption{Multi-sharded MDL with low contention.}
 \label{fig:e2e-nocontention}
 \end{figure}
