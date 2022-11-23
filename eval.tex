@@ -73,7 +73,7 @@ We show 6 subplots in figure \ref{fig:microben}, where we vary each of these var
 We expect to see:
 \begin{enumerate}
     \item num of clients: an increase in latency. since the logs will be longer, we have to propagate more dependencies
-    \item fanout: an increase in latency, same as # of clients.
+    \item fanout: an increase in latency, same as \# of clients.
     \item skew: an increase in latency, we expect to see more conflicts and thus more reissuing
     \item num of key: should see decrease in latency, less likely to have conflicts with more keys
     \item type of request: RO will have no reissuing, RW will have more reissing, so it will be slower
