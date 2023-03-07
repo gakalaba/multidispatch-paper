@@ -124,7 +124,7 @@ We provide a full proof of correctness in ~\ref{}.
     \State $prevReq \gets NULL$\\
     \State $P \gets 0$
     \State $m$ \algorithmiccomment{mutex}\\
-    \Function{\clientSubmit{Op, K, V}}{\\
+    \Function{\clientSubmit{Op, K, V}}{
         $seqno := \atomicAdd(i, 1)$\\
         $Req := (Op, K, V, PID, seqno)$\\
         $m.lock()$ \algorithmiccomment{Critical section begins}\\
@@ -152,7 +152,7 @@ We provide a full proof of correctness in ~\ref{}.
 \begin{algorithm}
     \State $Epoch \gets 0$\\
     \State $Timer \gets T$\\
-    \State $accepting \getst True$\\
+    \State $accepting \gets True$\\
     \State $commitLog \gets []$\\
     \State $orderedLog \gets []$\\
     \State $ClientSeqnoMap \gets [][]$\\
@@ -174,8 +174,8 @@ We provide a full proof of correctness in ~\ref{}.
         $\atomicAdd(Epoch, 1)$\\
         $accepting \gets True$\\
         $Timer \gets T$
-        
     }
+    
     \Function{\leaderSubmit{Op, K, V, P, s}}{
         \If{$ClientSeqnoMap[P] \neq s$}{
             $buffer_{P}(\{Op, K, V, P, s, bd\})$\\
