@@ -160,8 +160,8 @@ We provide a full proof of correctness in ~\ref{}.
         \Wait until $Timer = 0$\\
         $accepting \gets False$\\
         $batch := []$\\
-        \For{$entry \in commitLog$}{\\
-            \If{$entry.committed \land entry.coordinated$}{\\
+        \For{$entry \in commitLog$\\}{
+            \If{$entry.committed \land entry.coordinated$\\}{
                 $entry.epoch \gets Epoch$\\
                 $batch\append{entry}$\\
             }
