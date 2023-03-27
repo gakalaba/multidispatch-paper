@@ -60,30 +60,36 @@
 \usepackage{filecontents}
 \usepackage{float}
 \usepackage{graphicx}
+\usepackage[font=small,skip=1pt]{caption}
+
+\usepackage{algorithmicx}
+\usepackage[linesnumbered,ruled]{algorithm2e}
+\usepackage{multicol}
 
 %-------------------------------------------------------------------------------
-\begin{filecontents}{\jobname.bib}
-%-------------------------------------------------------------------------------
-@Book{arpachiDusseau18:osbook,
-  author =       {Arpaci-Dusseau, Remzi H. and Arpaci-Dusseau Andrea C.},
-  title =        {Operating Systems: Three Easy Pieces},
-  publisher =    {Arpaci-Dusseau Books, LLC},
-  year =         2015,
-  edition =      {1.00},
-  note =         {\url{http://pages.cs.wisc.edu/~remzi/OSTEP/}}
-}
-@InProceedings{waldspurger02,
-  author =       {Waldspurger, Carl A.},
-  title =        {Memory resource management in {VMware ESX} server},
-  booktitle =    {USENIX Symposium on Operating System Design and
-                  Implementation (OSDI)},
-  year =         2002,
-  pages =        {181--194},
-  note =         {\url{https://www.usenix.org/legacy/event/osdi02/tech/waldspurger/waldspurger.pdf}}}
-\end{filecontents}
+% \begin{filecontents}{\jobname.bib}
+% %-------------------------------------------------------------------------------
+% @Book{arpachiDusseau18:osbook,
+%   author =       {Arpaci-Dusseau, Remzi H. and Arpaci-Dusseau Andrea C.},
+%   title =        {Operating Systems: Three Easy Pieces},
+%   publisher =    {Arpaci-Dusseau Books, LLC},
+%   year =         2015,
+%   edition =      {1.00},
+%   note =         {\url{http://pages.cs.wisc.edu/~remzi/OSTEP/}}
+% }
+% @InProceedings{waldspurger02,
+%   author =       {Waldspurger, Carl A.},
+%   title =        {Memory resource management in {VMware ESX} server},
+%   booktitle =    {USENIX Symposium on Operating System Design and
+%                   Implementation (OSDI)},
+%   year =         2002,
+%   pages =        {181--194},
+%   note =         {\url{https://www.usenix.org/legacy/event/osdi02/tech/waldspurger/waldspurger.pdf}}}
+% \end{filecontents}
 
 %-------------------------------------------------------------------------------
 \begin{document}
+\include{common}
 %-------------------------------------------------------------------------------
 
 %don't want date printed
@@ -108,15 +114,12 @@
 \maketitle
 
 \input{abstract.tex}
-
 \input{intro.tex}
-
-\input{related.tex}
-
+\input{motivation.tex}
+\input{mdl.tex}
 \input{design.tex}
-
 \input{eval.tex}
-
+\input{related.tex}
 \input{concl.tex}
 %-------------------------------------------------------------------------------
 \section*{Acknowledgments}
@@ -129,7 +132,7 @@ acknowledging. Sorry.
 
 %-------------------------------------------------------------------------------
 \bibliographystyle{plain}
-\bibliography{\jobname}
+\bibliography{paper}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \end{document}
@@ -137,4 +140,136 @@ acknowledging. Sorry.
 
 %%  LocalWords:  endnotes includegraphics fread ptr nobj noindent
 %%  LocalWords:  pdflatex acks
->>>>>>> f2bb35b1857edcffc4db2000ff48bd30f9d2a16e
+
+
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% % Template for USENIX papers.
+% %
+% % History:
+% %
+% % - TEMPLATE for Usenix papers, specifically to meet requirements of
+% %   USENIX '05. originally a template for producing IEEE-format
+% %   articles using LaTeX. written by Matthew Ward, CS Department,
+% %   Worcester Polytechnic Institute. adapted by David Beazley for his
+% %   excellent SWIG paper in Proceedings, Tcl 96. turned into a
+% %   smartass generic template by De Clarke, with thanks to both the
+% %   above pioneers. Use at your own risk. Complaints to /dev/null.
+% %   Make it two column with no page numbering, default is 10 point.
+% %
+% % - Munged by Fred Douglis <douglis@research.att.com> 10/97 to
+% %   separate the .sty file from the LaTeX source template, so that
+% %   people can more easily include the .sty file into an existing
+% %   document. Also changed to more closely follow the style guidelines
+% %   as represented by the Word sample file.
+% %
+% % - Note that since 2010, USENIX does not require endnotes. If you
+% %   want foot of page notes, don't include the endnotes package in the
+% %   usepackage command, below.
+% % - This version uses the latex2e styles, not the very ancient 2.09
+% %   stuff.
+% %
+% % - Updated July 2018: Text block size changed from 6.5" to 7"
+% %
+% % - Updated Dec 2018 for ATC'19:
+% %
+% %   * Revised text to pass HotCRP's auto-formatting check, with
+% %     hotcrp.settings.submission_form.body_font_size=10pt, and
+% %     hotcrp.settings.submission_form.line_height=12pt
+% %
+% %   * Switched from \endnote-s to \footnote-s to match Usenix's policy.
+% %
+% %   * \section* => \begin{abstract} ... \end{abstract}
+% %
+% %   * Make template self-contained in terms of bibtex entires, to allow
+% %     this file to be compiled. (And changing refs style to 'plain'.)
+% %
+% %   * Make template self-contained in terms of figures, to
+% %     allow this file to be compiled. 
+% %
+% %   * Added packages for hyperref, embedding fonts, and improving
+% %     appearance.
+% %   
+% %   * Removed outdated text.
+% %
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% \documentclass[letterpaper,twocolumn,10pt]{article}
+% \usepackage{usenix-2020-09}
+
+% % to be able to draw some self-contained figs
+% \usepackage{tikz}
+% \usepackage{amsmath}
+
+% % inlined bib file
+% \usepackage{filecontents}
+% \usepackage{float}
+% \usepackage{graphicx}
+% \usepackage[font=small,skip=1pt]{caption}
+
+% \usepackage{algpseudocode}
+% \usepackage[linesnumbered,ruled]{algorithm2e}
+
+% \begin{document}
+% \include{common}
+% %don't want date printed
+% \date{}
+
+% % make title bold and 14 pt font (Latex default is non-bold, 16 pt)
+% \title{\Large \bf \mdl}
+
+% % %for single author (just remove % characters)
+% % \author{
+% % {\rm Your N.\ Here}\\
+% % Your Institution
+% % \and
+% % {\rm Second Name}\\
+% % Second Institution
+% % % copy the following lines to add more authors
+% % % \and
+% % % {\rm Name}\\
+% % %Name Institution
+% % } % end author
+
+% \maketitle
+
+% \input{abstract.tex}
+
+% \input{intro.tex}
+
+% \input{motivation.tex}
+% \input{background.tex}
+
+% \input{definition.tex}
+
+% \input{design.tex}
+
+% \input{implementation.tex}
+
+% \input{eval.tex}
+
+% \input{related.tex}
+
+% \input{concl.tex}
+
+% \input{proofs.tex}
+% %-------------------------------------------------------------------------------
+% \section*{Acknowledgments}
+% %-------------------------------------------------------------------------------
+
+% The USENIX latex style is old and very tired, which is why
+% there's no \textbackslash{}acks command for you to use when
+% acknowledging. Sorry.
+
+
+% %-------------------------------------------------------------------------------
+% \bibliographystyle{plain}
+% \bibliography{references}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% \end{document}
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% %%  LocalWords:  endnotes includegraphics fread ptr nobj noindent
+% %%  LocalWords:  pdflatex acks
+% >>>>>>> f2bb35b1857edcffc4db2000ff48bd30f9d2a16e

@@ -1,0 +1,15 @@
+\def \mpaxos  {Multi-Paxos\xspace}
+\def \sdl  {Single-dispatch Linearizability\xspace}
+\def \mdl  {Multi-dispatch Linearizability\xspace}
+\def \sd  {SDL\xspace}
+\def \md  {MDL\xspace}
+\def \protocol {Blam-Boom\xspace}
+
+\newcommand{\showComments}{yes}
+
+
+\newcommand{\note}[2]{
+    \ifthenelse{\equal{\showComments}{yes}}{{\color{#1}[#2]}}{}
+}
+\definecolor{worange}{RGB}{245, 128, 37}
+\newcommand{\wl}[1]{\note{worange}{W: #1}}

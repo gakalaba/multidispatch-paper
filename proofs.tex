@@ -1,0 +1,26 @@
+\newpage
+
+\section{MDL Proofs}
+\label{sec:proofs}
+
+\subsection{Proof of Correctness}
+
+\paragraph{Theorem 1.} \textit{\protocol provides \mdl.}
+\\
+\\
+\textit{Proof.} For any execution of \protocol, we construct a total order as follows. At each shard, the log consists of requests ordered by increasing version numbers. Metadata that is also included per request is the PID per request representing the unique process ID for the process that submitted a given request as well as a sequence number representing the invocation order of requests submitted by each process across shards. 
+\begin{enumerate}
+    \item Cases 1-4: Sequential or concurrent requests submitted by a single client $n \geq 1$ shard. \texttt{These are ordered by their sequence number (this is consistent with invocation order!).} 
+    \item Case 5: sequential requests (real time ordered) submitted by different processes to 1 shard. \texttt{These are ordered by version number (this is consistent with real time!).}
+    \item Case 6: sequential requests submitted by different processes across $n > 1$ shards. \textbf{\texttt{Currently, these are unordered!}}
+    \item Case 7: concurrent requests submitted by different processes to 1 shard. \texttt{These are ordered by version number, the sequence number ensures that it is invocation order per process.} \textbf{How to show this is legal... it is intuitively but why?}
+    \item Case 8: concurrent requests submitted by different processes to $n>1$ shards. \texttt{These are ordered by.} \textbf{The protocol allows us to detect concurrent requests due to intershard communication that propagates the log dependency set held at each shard. Conflict detection ensures that a legal order of operations across processes is respected.}
+\end{enumerate}
+
+\paragraph{Lemma 1.} \textit{$<_x$ is a strict total order.}
+\\
+\\
+\textit{Proof.} Cases 1,3,5,7.
+\\
+
+We define $<_\psi$ which is across all the shards...
