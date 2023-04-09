@@ -56,7 +56,7 @@
 % 2. include parts in the motivation that describe why you can't simply do "X". and then in design you can refer to motivation...
 
 
-To support \mdl, we introduce a new protocol design, \md. This new design ensures the existing guarantees of \sdl such as (1) a total order of all requests that (2) respects real time ordering, as well as a new guaranty that (3) the total order respects per-client invocation-order. In this section we describe our protocol and how each component works to provide these guarantees.
+To support \mdl, we introduce a new protocol design, \protocol. This new design ensures the existing guarantees of \sdl such as (1) a total order of all requests that (2) respects real time ordering, as well as a new guaranty that (3) the total order respects per-client invocation-order. In this section we describe our protocol and how each component works to provide these guarantees.
 
 \subsection{Overview}
 The full client and shard protocols are specified in Algorithms ~\ref{clientprotocol}, ~\ref{shardprotocol}, and ~\ref{coordinationprotocol}. Our protocol builds atop Raft, which provides \sdl. 

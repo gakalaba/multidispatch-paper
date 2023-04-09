@@ -1,4 +1,8 @@
 \newpage
+\usepackage[english]{babel}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{corollary}{Corollary}[theorem]
+\newtheorem{lemma}[theorem]{Lemma}
 
 \section{MDL Proofs}
 \label{sec:proofs}
@@ -8,19 +12,31 @@
 \paragraph{Theorem 1.} \textit{\protocol provides \mdl.}
 \\
 \\
-\textit{Proof.} For any execution of \protocol, we construct a total order as follows. At each shard, the log consists of requests ordered by increasing version numbers. Metadata that is also included per request is the PID per request representing the unique process ID for the process that submitted a given request as well as a sequence number representing the invocation order of requests submitted by each process across shards. 
-\begin{enumerate}
-    \item Cases 1-4: Sequential or concurrent requests submitted by a single client $n \geq 1$ shard. \texttt{These are ordered by their sequence number (this is consistent with invocation order!).} 
-    \item Case 5: sequential requests (real time ordered) submitted by different processes to 1 shard. \texttt{These are ordered by version number (this is consistent with real time!).}
-    \item Case 6: sequential requests submitted by different processes across $n > 1$ shards. \textbf{\texttt{Currently, these are unordered!}}
-    \item Case 7: concurrent requests submitted by different processes to 1 shard. \texttt{These are ordered by version number, the sequence number ensures that it is invocation order per process.} \textbf{How to show this is legal... it is intuitively but why?}
-    \item Case 8: concurrent requests submitted by different processes to $n>1$ shards. \texttt{These are ordered by.} \textbf{The protocol allows us to detect concurrent requests due to intershard communication that propagates the log dependency set held at each shard. Conflict detection ensures that a legal order of operations across processes is respected.}
-\end{enumerate}
 
-\paragraph{Lemma 1.} \textit{$<_x$ is a strict total order.}
-\\
-\\
-\textit{Proof.} Cases 1,3,5,7.
-\\
+% No real time edges %
+\begin{lemma}
+\label{lemma:pred_epoch_order}
+    Given operations $e_1$ and $e_2$, $e_1 <_p e_2 \implies \epsilon_1 < \epsilon_2$
+\end{lemma}
 
-We define $<_\psi$ which is across all the shards...
+\begin{lemma}
+\label{lemma:shard_epoch_order}
+    Given operations $e_1$ and $e_2$, $e_1 <_x e_2 \implies \epsilon_1 \leq \epsilon_2$
+\end{lemma}
+
+% 1 real time edge %
+\begin{lemma}
+    Given operations $e_1$ and $e_2$, $e_1 \rightarrow_\alpha e_2 <_p e_3 \implies e_1 \rightarrow_\alpha e_3$
+\end{lemma}
+
+\begin{lemma}
+    the minimum cycle with one real time edge must be size $m \geq 3$
+\end{lemma}
+
+\begin{lemma}
+    Given operations $e_1, e_2, e_3, e_4$, $e_1 <_p e_2 \rightarrow_\alpha e_3 <_x e_4 \land shard(e_1) = shard(e_4) \implies \epsilon_1 < \epsilon_4$
+\end{lemma}
+
+\begin{lemma}
+    Given operations $e_1, e_2, e_3, e_4, e_5$, $e_1 <_p e_2 <_{x_1} e_3 \rightarrow_\alpha e_4 <_{x_2} e_5 \land shard(e_1) = shard(e_5) \implies \epsilon_1 < \epsilon_5$
+\end{lemma}
