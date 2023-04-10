@@ -107,31 +107,82 @@ protocols are specified in Algorithms~\ref{clientprotocol} and~\ref{shardprotoco
 
 \subsection{Client-Driven Coordination}
 
-As discussed in Section~\ref{sec:mdl:single-shard}, per-client sequence numbers are
-can ensure a client's invocation order is respected if all of its operations are at
-one shard but are insufficient if the operations span multiple shards. Thus, \sys{}
-extends this idea by introducing client-driven coordination between shards. We
-refer to such a message as a \textit{coordination request} (CR).
+Operations in a multi-shard system can fail independently, e.g., during leader failure at one shard. 
+When clients issue multiple operations
+concurrently, this also makes it possible for an earlier operation to fail while a later
+operation succeeds. But such a case would violate \MDL{}'s suffix-complete failure semantics.  
+\sys{} thus introduces client-driven \textit{coordination requests (CR)} between shards to preserve these semantics.
 
 When each client submits an operation to a shard, in parallel it also submits a CR
-to  the shard of its predecessor operation. For some operation issued by client $C$
+to the shard of its predecessor operation with the identity of the shard of its successor.
+For some operation issued by client $C$
 with sequence number $s$, a predecessor operation is defined as the concurrent
 operation that client $C$ issued with sequence number $s-1$. If client $C$ does not
 have any other outstanding operations, then the operation's predecessor is
-\texttt{nil}.
+\texttt{null}.
 
-\subsection{Decoupling Fault-tolerance \& Ordering}
+An operation is considered \textit{replicated} once it has been acknowledged by a
+quorum of replicas. Further, it is considered \textit{coordinated} if the shard has
+received a \textit{coordination response} from the shard leader of the operation's predecessor.
+(Operations without a predecessor are vacuously coordinated.)
+Upon receiving a coordination request, a shard first waits until the operation is
+replicated and coordinated and then sends a coordination response to the shard leader
+of its successor. This inductively guarantees all of an operation's predecessors will
+eventually succeed.
 
-Need to describe epochs, pending operation set, and final ordering.
+\subsection{Decoupling Fault-Tolerance \& Ordering}
 
-Requests can only be executed in a given epoch if they have also been coordinated by their predecessor, which is signaled when the shard
-leader of the predecessor responds success for the CR message. Requests with 0 predecessors are vacuously coordinated. Importantly, a shard can only coordinate
-a request if the predecessor itself is also coordinated (and committed). This inductively guarantees that all concurrent requests that were previously invoked
-will be coordinated, and thus sorted in their epochs. This is also why clients only need to submit a single CR to the single outstanding predecessor.
+\sys{} decouples fault-tolerance and ordering to allow operations to allows shards to process operations
+from the same client in parallel. This is key to \sys{}'s ability to offer lower end-to-end application
+latency.
+
+Shards divide their execution into a series of \textit{epochs}. The epoch length is a system parameter,
+and epochs need not be synchronized across shards.
+
+Each operation then requires two rounds between a shard leader and a quorum of its replicas.
+When the operation arrives at the shard leader, it is replicated first for fault-tolerance
+and placed in an unordered pending operation set. As mentioned above, this also allows the shard
+leader to respond to a coordination request if the operation has a successor. At the end of the epoch,
+the shard leader places all of the operations that have been replicated and coordinated
+since the end of the last epoch into its (ordered) log and sends a second message to a quorum of
+replicas to commit this order. (We describe how the leader orders requests in more detail in the next
+section.)
+
+Operations may fail to be included in the current epoch for one of two reasons:
+(1) they may time out while waiting to receive a coordination response from their predecessor,
+which we implement by bounding the number of epochs during which it can exist in the pending operation set,
+or (2) they may receive an explicit FAIL response for its coordination response. The latter can happen
+if, for instance, a leader failure occurred at one of the predecessors' shards.
+
+An operation that has been included in the ordered log at both a leader and a quorum of replicas
+is considered \textit{ordered}. Leaders and replicas execute ordered requests in the same fashion
+as Raft~\cite{ongaro2014raft}, and leaders respond to clients after executing an operation.
+
+\subsubsection{Operation vs. End-To-End Latency}
+
+Although decoupling fault-tolerance and ordering increases each operation's latency by introducing a
+second round of messages between a leader and its replicas, it still improves end-to-end application
+latency of applications that issue more than a few operations. This is because shards can replicate
+operations from the same client in parallel. Further, they can commit an order and execute operations
+in parallel, too. Only the cross-shard coordination messages are sent sequentially for a client's
+sequence of operations.
+
+As a result, a client's end-to-end application latency when using \sys{} scales by a factor
+of the one-way cross-shard latency as the number of operations increases. In contrast,
+the latency of applications using a \singledispatch{} system scales by a factor of the
+quorum round-trip latency. Our evaluation in Section~\ref{sec:eval} bears out this claim.
 
 \subsection{Lamport Timestamps For Issue Order}
 
 Need to describe Lamport timestamp assignment and propagation.
+
+A total execution order is guaranteed by ensuring shards sort \textit{ordered} requests by increasing size of predecessor set within each epoch and execute requests in monotonically increasing epoch order. As mentioned before, sorting requests by the number of predecessors ensures a safe total ordering exists. The client library keeps track of the total number of outstanding requests at a given time, which it submits with each request for its predecessor set size. Requests with equal predecessor set sizes are sorted by arrival order to guarantee a stable sort across replicas.
+
+An \textit{ordered} request is one that has been committed and coordinated. \md commits requests with the same mechanism as regular Raft, and it coordinates requests with the use of CR messages sent between shard leaders. Since executing requests now depends on two requirements being fulfilled, commitment as well as coordination, shards keep track of two logs. The first is an execution log containing \textit{ordered} requests that is segmented by epochs, and the second is a buffered log where request entries exist until they are committed (replicated at a majority) and coordinated. While this could be achieved with one log that contains holes and is executed in custom nonlinear order, we choose to break the log into two logs to simplify things and to remain consistent with Raft. We include a final \textit{ordering} inter-replica agreement at the end of each epoch to move requests between logs.
+
+\md can only guarantee a safe total ordering across epochs of shards if it executes \textit{ordered} requests. Figure ~\ref{fig:sortedbatchingwrong} shows an execution that does not abide by this constraint, and only sorts committed (but not coordinated) requests within epochs. A cycle arises among all the requests across epoch boundaries, thus the execution does not have a total order and is not multi-dispatch linearizeable. A SUCCESS response for a given request's CR message, which coordinates it, serves as a promise that all predecessors have been sorted at the same or earlier epochs on their respective shards, which provides a total order across epochs of different shards.
+
+Requests can only be executed in a given epoch if they have also been coordinated by their predecessor.
 
 % To to get invocation order, there are multiple mechanisms at play
 % 1. sequence numbers
@@ -139,17 +190,6 @@ Need to describe Lamport timestamp assignment and propagation.
 %       -these only get sent to the immediate predecessor (talk about inductive guarantees)
 %       -these only get acked if all the other predecessors have been acked too, guaranteeing they are sorted as well. you can only be in an epoch equivalent to or greater than the epochs of your predecessors (not absolute values)
 
-\subsection{Total Order}
-A total execution order is guaranteed by ensuring shards sort \textit{ordered} requests by increasing size of predecessor set within each epoch and execute requests in monotonically increasing epoch order. As mentioned before, sorting requests by the number of predecessors ensures a safe total ordering exists. The client library keeps track of the total number of outstanding requests at a given time, which it submits with each request for its predecessor set size. Requests with equal predecessor set sizes are sorted by arrival order to guarantee a stable sort across replicas.
-
-An \textit{ordered} request is one that has been committed and coordinated. \md commits requests with the same mechanism as regular Raft, and it coordinates requests with the use of CR messages sent between shard leaders. Since executing requests now depends on two requirements being fulfilled, commitment as well as coordination, shards keep track of two logs. The first is an execution log containing \textit{ordered} requests that is segmented by epochs, and the second is a buffered log where request entries exist until they are committed (replicated at a majority) and coordinated. While this could be achieved with one log that contains holes and is executed in custom nonlinear order, we choose to break the log into two logs to simplify things and to remain consistent with Raft. We include a final \textit{ordering} inter-replica agreement at the end of each epoch to move requests between logs.
-
-\md can only guarantee a safe total ordering across epochs of shards if it executes \textit{ordered} requests. Figure ~\ref{fig:sortedbatchingwrong} shows an execution that does not abide by this constraint, and only sorts committed (but not coordinated) requests within epochs. A cycle arises among all the requests across epoch boundaries, thus the execution does not have a total order and is not multi-dispatch linearizeable. A SUCCESS response for a given request's CR message, which coordinates it, serves as a promise that all predecessors have been sorted at the same or earlier epochs on their respective shards, which provides a total order across epochs of different shards.
-
-\subsubsection{Failure Semantics}
-We define \mdl failures as follows: a group of outstanding requests issued by a client will induce a prefix-closed set of success responses followed by a set of failed responses. It is possible that all of the requests succeed, and the set of failed responses will be empty. Importantly, if a request fails, all concurrent requests invoked by the same client with greater sequence numbers will also fail.
-
-The coordination mechanism that we use to ensure correct ordering across epochs also satisfies these specific failure properties. A request can fail in one of two ways: (1) it times out while waiting to be coordinated, which we implement by bounding the number of epochs during which it can exist in the buffered log, or (2) it receives an explicit FAIL response for its CR message. With the inductive guarantees from CR messages, once a request fails it is guaranteed all subsequent requests will also fail.
 % Ensure that epcoh increase monotonically
 % ensure that each epoch is executed in sorted order
 % ensure that across epoch boundaries nothing fishy happens, guaranteed via CR acks

@@ -10,6 +10,10 @@ of \SDL{} for single-shard systems.
 \subsection{Definition}
 \label{sec:mdl:def}
 
+\subsubsection{Failure Semantics}
+
+We define \mdl failures as follows: a group of outstanding requests issued by a client will induce a prefix-closed set of success responses followed by a set of failed responses. It is possible that all of the requests succeed, and the set of failed responses will be empty. Importantly, if a request fails, all concurrent requests invoked by the same client with greater sequence numbers will also fail.
+
 \subsection{External Equivalence}
 \label{sec:mdl:equivalence}
 
