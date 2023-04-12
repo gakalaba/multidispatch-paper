@@ -1,72 +1,89 @@
+@Comment Publishers
+@string{ACM="{ACM}"}
+@string{IEEE="{IEEE}"}
+@string{INTERNETSOCIETY="{The Internet Society}"}
+@string{SPRINGER="{Springer}"}
+@string{USENIX="{USENIX}"}
+@string{VLDBEND="{VLDB}"}
+
+@Comment Journal Abbreviations
+@string{CACM="{Communications of the ACM}"}
+@string{CCR="{ACM Computer Communications Review}"}
+@string{CSUR="{ACM Computing Surveys}"}
+@string{JACM="{Journal of the ACM}"}
+@string{QUEUE="{ACM Queue}"}
+@string{SICOMP="{SIAM Journal on Computing}"}
+@string{SIGACT="{ACM SIGACT News}"}
+@string{OSR="{ACM SIGOPS Operating Systems Review}"}
+@string{PER="{SIGMETRICS Performance Evaluation Review}"}
+@string{TEAC="{ACM Transactions on Economics and Computation}"}
+@string{TOCS="{ACM Transactions on Computer Systems}"}
+@string{TOC="{IEEE Transactions on Computers}"}
+@string{TODS="{ACM Transactions on Database Systems}"}
+@string{TOMACS="{ACM Transactions on Modeling and Computer Simulation}"}
+@string{TON="{IEEE/ACM Transactions on Networking}"}
+@string{TOPLAS="{ACM Transactions on Programming Languages and Systems}"}
+@string{TPDS="{IEEE Transactions on Parallel and Distributed Systems}"}
+@string{VLDB="{Proceedings of the Very Large Data Bases Endowment}"}
+@string{VLDBJ="{The VLDB Journal}"}
 
 @article{ahamad1995causal,
-  title     = {Causal memory: Definitions, implementation, and programming},
-  author    = {Ahamad, Mustaque and Neiger, Gil and Burns, James E and Kohli, Prince and Hutto, Phillip W},
-  journal   = {Distributed Computing},
-  volume    = {9},
-  number    = {1},
-  pages     = {37--49},
-  year      = {1995},
-  publisher = {Springer}
+  title={Causal Memory: Definitions, Implementation, and Programming},
+  author={Ahamad, Mustaque and Neiger, Gil and Burns, James E and Kohli, Prince and Hutto, Phillip W},
+  journal={Distributed Computing},
+  volume=9,
+  number=1,
+  pages={37--49},
+  year=1995,
+  publisher=SPRINGER,
 }
 
 @inproceedings{ajoux2015challenges,
-  author    = {Phillipe Ajoux and Nathan Bronson and Sanjeev Kumar and Wyatt Lloyd and Kaushik Veeraraghavan},
-  title     = {Challenges to Adopting Stronger Consistency at Scale},
-  booktitle = {15th Workshop on Hot Topics in Operating Systems (HotOS XV)},
-  year      = {2015},
-  address   = {Kartause Ittingen, Switzerland},
-  url       = {https://www.usenix.org/conference/hotos15/workshop-program/presentation/ajoux},
-  publisher = {USENIX Association},
-  month     = may
-}
-
-@book{arpachiDusseau18:osbook,
-  author    = {Arpaci-Dusseau, Remzi H. and Arpaci-Dusseau Andrea C.},
-  title     = {Operating Systems: Three Easy Pieces},
-  publisher = {Arpaci-Dusseau Books, LLC},
-  year      = 2015,
-  edition   = {1.00},
-  note      = {\url{http://pages.cs.wisc.edu/~remzi/OSTEP/}}
+  title={Challenges To Adopting Stronger Consistency At Scale},
+  author={Phillipe Ajoux and Nathan Bronson and Sanjeev Kumar and Wyatt Lloyd and Kaushik Veeraraghavan},
+  crossref={hotos2015},
+  pages={1--7},
 }
 
 @article{herlihy1990linearizability,
-  author     = {Herlihy, Maurice P. and Wing, Jeannette M.},
-  title      = {Linearizability: A Correctness Condition for Concurrent Objects},
-  year       = {1990},
-  issue_date = {July 1990},
-  publisher  = {Association for Computing Machinery},
-  address    = {New York, NY, USA},
-  volume     = {12},
-  number     = {3},
-  issn       = {0164-0925},
-  url        = {https://doi.org/10.1145/78969.78972},
-  doi        = {10.1145/78969.78972},
-  journal    = {ACM Trans. Program. Lang. Syst.},
-  month      = {jul},
-  pages      = {463–492},
-  numpages   = {30}
+  author={Herlihy, Maurice P. and Wing, Jeannette M.},
+  title={Linearizability: A Correctness Condition for Concurrent Objects},
+  journal=TOPLAS,
+  volume=12,
+  number=3,
+  month=jul,
+  year=1990,
+  issn={0164-0925},
+  pages={463--492},
+  numpages=30,
 }
 
 @inproceedings{ongaro2014raft,
-  author    = {Diego Ongaro and John Ousterhout},
-  title     = {In Search of an Understandable Consensus Algorithm},
-  booktitle = {2014 USENIX Annual Technical Conference (USENIX ATC 14)},
-  year      = {2014},
-  isbn      = {978-1-931971-10-2},
-  address   = {Philadelphia, PA},
-  pages     = {305--319},
-  url       = {https://www.usenix.org/conference/atc14/technical-sessions/presentation/ongaro},
-  publisher = {USENIX Association},
-  month     = jun
+  author={Diego Ongaro and John Ousterhout},
+  title={In Search of an Understandable Consensus Algorithm},
+  crossref={atc2014},
+  pages={305--319},
 }
 
-@inproceedings{waldspurger02,
-  author    = {Waldspurger, Carl A.},
-  title     = {Memory resource management in {VMware ESX} server},
-  booktitle = {USENIX Symposium on Operating System Design and
-               Implementation (OSDI)},
-  year      = 2002,
-  pages     = {181--194},
-  note      = {\url{https://www.usenix.org/legacy/event/osdi02/tech/waldspurger/waldspurger.pdf}}
+@inproceedings{lynch1987ioa,
+  author={Lynch, Nancy A. and Tuttle, Mark R.},
+  title={Hierarchical Correctness Proofs for Distributed Algorithms},
+  crossref={podc1987},
+  pages={137--151},
+}
+
+@book{lynch1996da,
+  author={Lynch, Nancy A.},
+  title={{Distributed Algorithms}},
+  year=1996,
+  isbn={9780080504704},
+  publisher={Morgan Kaufmann Publishers Inc.},
+  address={San Francisco, CA},
+}
+
+@inproceedings{helt2021rss,
+  author={Helt, Jeffrey and Burke, Matthew and Levy, Amit and Lloyd, Wyatt},
+  title={Regular Sequential Serializability and Regular Sequential Consistency},
+  crossref={sosp2021},
+  pages={163--179},
 }

@@ -1,0 +1,85 @@
+\section{Full Equivalence Proof}
+\label{sec:equivalence}
+
+\subsection{Preliminaries}
+\label{sec:equivalence:preliminaries}
+
+\subsubsection{I/O Automata}
+\label{sec:equivalence:preliminaries:ioa}
+
+We model each component in our system as an I/O automaton
+(IOA)~\cite{lynch1987ioa,lynch1996da}, a type of state machine. Each
+transition of an IOA is labeled with an \textit{action}, which can be an
+\textit{input}, \textit{output}, or \textit{internal} action. Input and output
+actions allow the automaton to interact with other IOA and the environment. We
+assume input actions are not controlled by an IOA---they may arrive at any time.
+Conversely, output and internal actions are \textit{locally controlled}---an IOA defines
+when they can be performed.
+
+To specify an IOA, we must first specify its \textit{signature}. A signature $S$ is
+a tuple comprising three disjoint sets of actions: input actions $\actin(S)$,
+output actions $\actout(S)$, and internal actions $\actint(S)$. We also define
+$\localacts(S) = \actout(S) \cup \actint(S)$ as the set of locally controlled actions, $\extacts(S) = \actin(S) \cup \actout(S)$ as the set of external actions, and $\acts(S) = \actin(S) \cup \actout(S) \cup \actint(S)$ as the set of all actions.
+
+Formally, an I/O automaton $A$ comprises four items:
+\begin{enumerate}
+\item a signature $\sig(A)$,
+\item a (possibly infinite) set of states $\states(A)$,
+\item a set of start states $\start(A) \subseteq \states(A)$, and
+\item a transition relation $\trans(A) \subseteq \states(A) \times
+  \acts(\sig(A)) \times \states(A)$.
+\end{enumerate}
+Since inputs may arrive at any time, we assume that for every state $s$ and
+input action $\pi$, there is some $(s, \pi, s^\prime) \in \trans(A)$.
+
+An \textit{execution} of an I/O automaton $A$ is a finite or infinite
+sequence of alternating states and actions $s_0,\pi_1,s_1,\ldots$ such that for
+each $i \geq 0$, $(s_i, \pi_{i+1}, s_{i+1}) \in \trans(A)$ and $s_0 \in \start(A)$. Finite executions always end with a state.
+
+Given an execution $\alpha$, we can also define
+its \textit{schedule} $\sched(\alpha)$, which is the subsequence of just
+the actions in $\alpha$. Similarly, an execution's \textit{trace}
+$\trace(\alpha)$ is the subsequence of just the external actions $\pi \in
+\extacts(A)$.
+
+\subsubsection{Composition and Projection}
+\label{sec:equivalence:preliminaries:composition}
+
+To compose
+two IOA, they must be \textit{compatible}. Formally, a finite set of
+signatures $\{S_i\}_{i \in I}$ is compatible if for all $i,j \in I$ such that $i \neq j$:
+\begin{enumerate}
+\item $\actint(S_i) \cap \acts(S_j) = \emptyset$, and
+\item $\actout(S_i) \cap \actout(S_j) = \emptyset$.
+\end{enumerate}
+A finite set of automata are compatible if their signatures are compatible.
+
+Given a set of compatible signatures, we define their \textit{composition} $S =
+\prod_{i \in I} S_i$ as the signature with $\actin(S) = \bigcup_{i \in I}
+\actin(S_i) - \bigcup_{i \in I} \actout(S_i)$, $\actout(S) = \bigcup_{i \in I}
+\actout(S_i)$, and $\actint(S) = \bigcup_{i \in I} \actint(S_i)$.
+
+The composition of a set of compatible IOA yields the automaton $A =
+\prod_{i \in I} A_i$ defined as follows:
+\begin{enumerate}
+\item $\sig(A) = \prod_{i \in I} \sig(A_i)$,
+\item $\states(A) = \prod_{i \in I} \states(A_i)$,
+\item $\start(A) = \prod_{i \in I} \start(A_i)$, and
+\item $\trans(A)$ contains all $(s,\pi,s^\prime)$ such that for all $i \in I$, if $\pi \in \acts(\sig(A_i))$, then $(s_i,\pi,s_i^\prime) \in \trans(A_i)$ and otherwise, $s_i = s_i^\prime$.
+\end{enumerate}
+The states of the composite automaton $A$ are vectors of the states of the composed
+automata. When an action occurs in
+$A$, all of the component automata with that action each take a step simultaneously, as defined
+by their individual transition relations. The resulting state differs in each of
+the components corresponding to these automata, and the other components are
+unchanged. We denote the composition of a small number of
+automata using an infix operator, e.g., $A \times B$.
+
+Given the execution $\alpha$ of a composed automaton $A = \prod_{i \in I} A_i$,
+we can \textit{project} the execution onto one of the component automata $A_i$.
+The execution $\alpha|A_i$ is found by removing all actions from
+$\alpha$ that are not actions of $A_i$. The states of $\alpha|A_i$ are
+given by the $i$th component of the corresponding state in $\alpha$. The
+projection of a trace is defined similarly.
+
+Further, we can write the projection of a state $s$ of $A$ on $A_i$ as $s|A_i$.  Finally, we can also project $\trace(\alpha)$ onto a set of actions $\Pi$ where $\trace(\alpha)|\Pi$ yields the subsequence of $\trace(\alpha)$ containing only actions in $\Pi$.
