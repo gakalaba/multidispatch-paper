@@ -1,0 +1,12 @@
+\section{Definition of MDL}
+
+\label{sec:definition}
+
+We define our new consistency model, \mdl. Intuitively, \md guarantees a total order of operations that respects (1) real time and (2) invocation order. Part (2) defines behavior for concurrent operations invoked by a single process. Like \sd, concurrent operations invoked by separate processes are consistent with \md if they are ordered in a way consistent with a legal sequential ordering.
+
+
+A history H induces an irreflexive partial ordering $<_H$ on operations if:
+\begin{enumerate}
+    \item $res(o_1) <_H inv(o_2)$ or
+    \item if $o_1$ and $o_2$ belong to the same process, then $inv(o_1) <_H inv(o_2)$
+\end{enumerate}

@@ -26,13 +26,21 @@ view an album, a Web server first reads the album's key and subsequently
 reads (one at a time) each of its photo's binary blob before
 returning the aggregated contents to the user.
 
+\wl{this example app is okay, but hopefully we can come up with a better one. This one isn't ideal because storing blob bodies in the data store is normal at small scale but unusual at large scale (where there are specific blob stores) and returning them in line is particularly unusual}
+
+\wl{ideally the example would not be based on existence of an object, which is easy for apps to fix with a retry loop}
+
 \subsection{Consistency Models \& App Latency}
 
 Programmers rely on a system’s consistency model while building their applications. By defining the system’s set of allowed behaviors, a consistency model permits programmers to ignore the system’s implementation and instead focus on ensuring their applications are correct given these behaviors.
 
+\wl{It would be great to include an additional example of many system interactions beyond the Facebook paper, especially if it wasn't from a hyperscaler}
+
 Existing consistency models, however, are increasingly insufficient for modern Web applications as they grow in scale and complexity. For example, Meta reports that processing a user's Web request can result in thousands of system interactions, with dozens of operations on the critical path \cite{ajoux2015challenges}. But many consistency models assume application processes have at most one outstanding operation to the system at a time \cite{ahamad1995causal,herlihy1990linearizability}. Thus, a Web server that obeys this assumption and issues dozens of operations sequentially
 (e.g., if a user uploads multiple photos in our example application)
 will incur significant application latency.
+
+\wl{I think we really want a figure here with three subfigures that show an execution with a) single dispatch (slow but correct), b) naive parallelization (fast but incorrect), c) multi-issue linearizabiity (fast and correct).}
 
 \subsection{Naive Parallelization Is Error-Prone}
 
@@ -57,3 +65,4 @@ Fixing applications also forces programmers to consider the system’s implement
 diminishing the usefulness of the consistency model.
 
 In the following sections, we propose a new multi-issue consistency model, multi-issue linearizability, to begin to remedy this tension. Multi-issue linearizability explicitly allow applications to issue operations concurrently. Consequently, it enables applications to achieve lower end-to-end latency. Provided programmers obey a set of rules when parallelizing their applications (described in Section~\ref{sec:}), an application interacting with a multi-issue linearizability system will behave identically to the original application interacting with a linearizable system. Thus, programmers can reap these performance benefits without fear of breaking their applications.
+\wl{please put the figs in a figs/ directory :)}
