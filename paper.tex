@@ -94,6 +94,10 @@
 \def \protocol {Blam-Boom\xspace}
 
 %%%%% Formalism %%%%%
+% Theorems
+\renewcommand{\qedsymbol}{$\blacksquare$}
+
+% Histories
 \DeclareMathOperator{\inv}{inv} % invocation
 \DeclareMathOperator{\res}{res} % response
 
@@ -115,6 +119,33 @@
 \DeclareMathOperator*{\system}{\textit{sys}}
 \DeclareMathOperator*{\user}{\textit{user}}
 \DeclareMathOperator*{\conflicts}{\mathcal{C}}
+\DeclareMathOperator*{\op}{\textit{op}}
+
+% Channels
+\DeclareMathOperator*{\send}{\textit{sendto}}
+\DeclareMathOperator*{\sent}{\textit{sent}}
+\DeclareMathOperator*{\request}{\textit{recvfrom}}
+\DeclareMathOperator*{\receive}{\textit{received}}
+\DeclareMathOperator*{\sendto}{\send}
+\DeclareMathOperator*{\recvfrom}{\request}
+
+% Types and objects
+\newcommand{\type}{\mathfrak{T}}
+\newcommand{\spec}{\mathfrak{S}}
+\DeclareMathOperator*{\vals}{\textit{vals}}
+\DeclareMathOperator*{\invs}{\textit{invs}}
+\DeclareMathOperator*{\resps}{\textit{resps}}
+\DeclareMathOperator*{\ops}{\textit{ops}}
+\newcommand{\invact}{\textit{inv}}
+\newcommand{\respact}{\textit{resp}}
+\newcommand{\stopact}{\textit{stop}}
+
+% Orders
+\newcommand{\caused}{\rightsquigarrow} % Causality for actions
+\newcommand{\rt}{\rightarrow} % Real-time
+
+% Transformation
+\DeclareMathOperator*{\transform}{\textit{transform}}
 
 %%%%% END Formalism %%%%%
 

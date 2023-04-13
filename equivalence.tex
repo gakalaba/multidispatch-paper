@@ -1,8 +1,15 @@
-\section{Full Equivalence Proof}
+\section{External Equivalence Proof}
 \label{sec:equivalence}
 
+In this section, we first define some preliminaries and then use them to show
+that an application built atop a linearizable service can be transformed to take
+advantage of the concurrency offered by \multidispatch{} linearizability such that
+the two versions of the application are externally equivalent. Our formalism
+closely aligns with that of prior work~\cite{helt2021rss}, which leverages the
+formalism of I/O automata~\cite{lynch1987ioa,lynch1996da}.
+
 \subsection{Preliminaries}
-\label{sec:equivalence:preliminaries}
+\label{sec:equivalence:preliminaries} 
 
 \subsubsection{I/O Automata}
 \label{sec:equivalence:preliminaries:ioa}
@@ -83,3 +90,282 @@ given by the $i$th component of the corresponding state in $\alpha$. The
 projection of a trace is defined similarly.
 
 Further, we can write the projection of a state $s$ of $A$ on $A_i$ as $s|A_i$.  Finally, we can also project $\trace(\alpha)$ onto a set of actions $\Pi$ where $\trace(\alpha)|\Pi$ yields the subsequence of $\trace(\alpha)$ containing only actions in $\Pi$.
+
+\subsubsection{Channels}
+\label{sec:equivalence:preliminaries:channels}
+
+\begin{table}[!t]
+  \centering
+  \begin{tabular}{l l l}
+    \multicolumn{3}{l}{\textbf{Signature:}} \\ \hline
+    Inputs: & & Outputs: \\
+    $\sendto(m)_{ij}, m \in M$ & & $\sent_{ij}$ \\
+    $\recvfrom_{ij}$ & & $\receive(m)_{ij}, m \in M$ \\ \hline
+    \\
+    \multicolumn{3}{l}{\textbf{States:}} \\ \hline
+    \multicolumn{3}{l}{$Q$, a FIFO queue of elements of $M$, initially empty} \\
+    \multicolumn{3}{l}{$e$, a Boolean, initially \textit{false}} \\
+    \multicolumn{3}{l}{$r$, a Boolean, initially \textit{false}} \\ \hline
+    \\
+    \multicolumn{3}{l}{\textbf{Actions:}} \\ \hline
+    \multicolumn{2}{l|}{$\sendto_{ij}(m)$:} & $\sent_{ij}$: \\
+    \multicolumn{2}{l|}{Precondition: \textit{true}} & Precondition: $e$ \\
+    \multicolumn{2}{l|}{Effect: $\textsc{Push}(Q,m); e \gets \textit{true}$} & Effect: $e \gets \textit{false}$ \\
+    \hline \hline
+    $\recvfrom_{ij}$: & \multicolumn{2}{|l}{$\receive_{ij}(m)$:} \\
+    Precondition: \textit{true} & \multicolumn{2}{|l}{Precondition: $r \land m = \text{Head}(Q)$} \\
+    Effect: $r \gets \textit{true}$ & \multicolumn{2}{|l}{Effect: $\textsc{Pop}(Q); r \gets \textit{false}$} \\ \hline
+  \end{tabular}
+  \captionof{figure}{Buffered Channel I/O Automaton}
+  \label{fig:buffered-channel-ioa}
+\end{table}
+
+Each pair of processes in our system communicates via a pair of FIFO
+channels that are asynchronous, reliable, and buffered. Each
+channel's signature, states, and actions are specified in
+Figure~\ref{fig:buffered-channel-ioa}.
+
+We denote the channel that process $i$ uses to send messages to process $j$ as
+$C_{ij}$. $C_{ij}$ has two sets of input actions, $\sendto_{ij}(m)$ and
+$\recvfrom_{ij}$, and two sets of output actions, $\sent_{ij}$ and
+$\receive_{ij}(m)$, for all $m$ in some space of messages $M$. Process $i$ has
+corresponding output actions, $\sendto_{ij}(m)$ and $\recvfrom_{ji}$, and input
+actions, $\sent_{ij}$ and $\receive_{ji}(m)$, for all other processes $j$ and
+messages $m$. To send a message to process $j$, process $i$ takes a
+$\sendto_{ij}$ step, and $C_{ij}$ subsequently takes a $\sent_{ij}$ step.
+Similarly, to receive a message from $C_{ij}$, process $j$ takes a
+$\recvfrom_{ij}$ step, and $C_{ij}$ subsequently takes a $\receive_{ij}(m)$ step.
+
+The modeling of buffering in the channels differs from past
+work~\cite{lynch1996da}. There, receive-from actions are omitted, and received
+actions are modeled as output actions of channels and corresponding input
+actions of processes. This implies processes cannot control when they
+change their state in response to a message.
+
+But in real applications, this is unrealistic. Although the network stack of a
+machine may accept and process a packet at any time, application code controls
+when it processes the contained message. For instance, the packet's contents remain in a kernel buffer until the application performs a read system call
+on a network socket. This control is essential to our proof as it ensures
+application processes do not receive messages while waiting for responses from
+services.
+
+We say an execution $\alpha$ of a channel $C_{ij}$ is \textit{well-formed} if
+(1) $\trace(\alpha) | \{\sendto_{ij}(m)\}_{m \in M} \cup \{\sent_{ij}\}$ is a
+sequence of alternating send-to and sent actions, starting with a send-to; and
+similarly (2) $\trace(\alpha) | \{\recvfrom_{ij}\} \cup \{\receive_{ij}(m)\}_{m
+  \in M}$ is a sequence of alternating receive-from and received actions,
+starting with a receive-from.
+
+\subsubsection{Types and Services}
+\label{sec:equivalence:preliminaries:services}
+
+Processes in our system interact with \textit{services}, each with a specified
+\textit{type}~\cite{herlihy1990linearizability,lynch1996da}. A service's type
+$\type$ defines its set of possible \textit{values} $\vals(\type)$, an
+\textit{initial value} $v_0 \in \vals(\type)$, and the \textit{operations}
+$\ops(\type)$ that can be invoked on the service. Each operation $o \in
+\ops(\type)$ is defined by a pair of sets of actions: \textit{invocations} $\invs(o)$ and
+\textit{responses} $\resps(o)$. Each contains subscripts denoting a unique service name and a process index. An invocation and response \textit{match} if their subscripts are equal.
+Finally, each service has a \textit{sequential specification} $\spec$, a
+prefix-closed set of sequences of matching invocation-response pairs.
+
+For example, consider a read/write register $x$ that supports a set of $n$
+processes and whose values is the set of integers. The read operation would then
+be defined with invocations $\{\textsc{read}_{i,x}\}$ and responses
+$\{\textsc{ret}_{i,x}(j)\}$ for all $0 \leq i \leq n$ and $j \in \mathcal{N}$.
+Similarly, the write operation would have invocations
+$\{\textsc{write}_{i,x}(j)\}$ and responses $\{\textsc{ack}_{i,x}\}$. Finally,
+its sequential specification would be the set of all sequences of reads and
+writes such that reads return the value written by the most recent write or the
+initial value if none exists.
+
+We can also compose types $\{\type_x\}_{x \in X}$ and sequential
+specifications $\{\spec_x\}_{x \in X}$. Formally, the values of $\type = \prod_{x
+  \in X} \type_x$ are vectors of the values of the composed types. $\ops(\type)$
+is the union of those of the composed types. Finally, the composite sequential
+specification $\spec = \prod_{x \in X} \spec_x$ is the set of all interleavings of the the invocation-response pairs of the component
+specifications $\spec_x$.
+
+\subsubsection{System Model}
+\label{sec:equivalence:preliminaries:model}
+
+We model a distributed application as the composition of two finite sets of I/O
+automata: processes and channels. $n$ denotes the number of processes, so there are $n^2$ channels. The processes execute the application's code by performing local computation, exchanging messages via channels, and performing invocations on and receiving responses from services.
+
+In the results below, we are interested in reasoning about which process invariants hold while assuming various correctness conditions of the services they interact with. Thus, we do not model services as IOA. Instead, we assume the processes interact with a (possibly composite) service with an arbitrary type $\type$ and $\spec$ defined for $n$ processes.
+
+For each operation $o \in \ops(\type)$, process $P_i$ is then assumed to have an output action for every invocation action in $\invs(o)$ with process index $i$. Similarly, $P_i$ has an input action for every response action in $\resps(o)$ with process index $i$. We refer to these input and output actions as a process's \textit{system-facing} actions $\system(P_i)$.
+
+To model stop failures, we assume each process $P_i$ has an input
+action $\textit{stop}_i$ such that after receiving it, $P_i$ ceases taking
+steps. If $\textit{stop}_i$ occurs while $P_i$ is waiting for a response from a service, then we assume the service does not return a response. But the operation may still cause a service's state to change, and this change may be visible to operations by other processes.
+
+Finally, to allow the distributed application to receive input from and return values to its environment (e.g., users), we assume each $P_i$ has a set of \textit{user-facing} actions $\user(P_i)$. Similar to a process's interactions with services, a user's interaction with a process is modeled through input-output pairs of user-facing actions.
+
+We make two final assumptions about the processes: First, we assume that while
+each process has access to a local clock, which is part of its state, and may
+set local timers, which are internal actions, the process makes no assumptions
+about the drift or skew of its clock relative to others. Second, processes only
+invoke an operation on a service when they have no outstanding send-to or
+receive-from actions at any channels.
+
+Let $P = \prod_{i \in I} P_i$ be the composition of the $n$ processes and $C = \prod_{1 \leq i \leq n} \prod_{1 \leq j \leq n} C_{ij}$ be the composition of $n^2$ channels. Let $\alpha$ be an execution of the distributed application $P \times C$. $\alpha$ is \textit{well-formed} if it satisfies three criteria:
+First, for all $P_i$, $\trace(\alpha) | \system(P_i)$ must be a sequence of alternating invocation and matching response actions, starting with an invocation. Second, for all $C_{ij}$, $\alpha | C_{ij}$ is well-formed. Third, for all $P_i$, $P_i$ does not take an output step while waiting for a response from some service. 
+
+\subsubsection{External Equivalence}
+\label{sec:equivalence:preliminaries:equivalence}
+
+\subsubsection{Transformation}
+\label{sec:equivalence:preliminaries:transform}
+
+\subsection{Proof}
+\label{sec:equivalence:proof}
+
+\begin{theorem}
+  Suppose $A$ is an IOA defining an application that interacts with a linearizable service,
+  and let $A^\prime = \transform(A)$ be the IOA defining the transformed application that
+  interacts with a comparable \multidispatch{} linearizable service. Suppose $\alpha$ is a
+  well-formed execution of $U \times C \times A^\prime$ that satisfies \multidispatch{} real-time
+  precedence, then there exists a well-formed execution $\beta$ of $U \times C \times A$ that
+  satisfies \singledispatch{} real-time precedence such that $\alpha | U = \beta | U$.
+\end{theorem}
+
+\begin{proof}
+  Let $U$, $A$, and $A^\prime$ be defined as above, and let $\alpha$ be an arbitrary,
+  well-formed execution of $U \times C \times A^\prime$ that satisfies \multidispatch{}
+  real-time precedence. We proceed by constructing $\beta$.
+
+  By assumption, $\alpha$ satisfies \multidispatch{} real-time precedence, so let $S$
+  be a total order over the operations in $\alpha | A^\prime$, as guaranteed by \MDL{}.
+
+  By the original restrictions on $A$ and rules 4, 5, 6, and 7 in the definition of $\transform$,
+  each $\alpha | P_i$ comprises sub-sequences of local and system-facing actions separated by
+  non-system-facing external actions. Further, by rule 5 of $\transform$, the order of the
+  non-system-facing external actions in each $\alpha | P_i$ respects the program order of the
+  original application $A$. 
+
+  We first reorder the actions in each sub-sequence of each $\alpha | P_i$ by reversing the
+  transformation, placing the local and system-facing actions such that they respect the program
+  order of $A$. More precisely, for any two actions $\pi_1$, $\pi_2$ that were reordered by $\transform$
+  such that $\pi_1$ precedes $\pi_2$ in $A$'s program order but $\pi_2$ precedes $\pi_1$ in $A^\prime$'s,
+  shift $\pi_1$ left in $\alpha$ until it precedes $\pi_2$. Let $\alpha^\prime$ be the resulting execution.
+
+  By the observation about each $\alpha | P_i$ above, the order of non-system-facing external actions
+  in $\alpha^\prime$ respects $A$'s program order (because $A^\prime$'s is identical). Further,
+  each $\alpha^\prime | P_i$ now issues system operations sequentially. These operations, however,
+  may not be linearizable.
+
+  To produce a well-formed execution $\beta$, we next let $\caused_{\alpha^\prime}$ be the set of the
+  following pairs $(\pi_i, \pi_j)$ of actions in $\alpha^\prime$:
+  \begin{enumerate}
+    \item $\mathbf{<_M}$\textbf{:} $\pi_i$ is a send action for some message $M$ (between two useres,
+    from a user to a process, a process to a user, or between two processes) and $\pi_j$
+    is its corresponding receive action,
+    \item $\mathbf{<_{P_i}}$\textbf{:} $\pi_i$ precedes $\pi_j$ in some $\alpha^\prime | P_i$,
+    \item $\mathbf{<_U}$\textbf{:} $\pi_i$ precedes $\pi_j$ in $\alpha^\prime | U$,
+    \item $\mathbf{<_S}$\textbf{:} For each adjacent pair of operations $o_k$, $o_{k+1}$ in $S$, $\pi_i$ is
+    the response action of $o_k$ and $\pi_j$ is the invocation action of $o_{k+1}$, or
+    \item \textbf{Transitivity:} there exists some action $\pi_k$ such that $(\pi_i, \pi_k)$
+    and $(\pi_k, \pi_j)$ are in $\caused_{\alpha^\prime}$.
+  \end{enumerate}
+
+  We posit $\caused_{\alpha^\prime}$ defines an irreflexive partial order over the actions
+  in $\alpha^\prime$. Clearly it is irreflexive and transitive; we now prove it is acyclic.
+
+  For sake of contradiction, assume $\caused_{\alpha^\prime}$ contains at least one cycle. Let
+  $\pi_1 \caused_{\alpha^\prime} \pi_2 \caused_{\alpha^\prime} \ldots \caused_{\alpha^\prime} \pi_1$
+  be one of the shortest such cycles that does not include any transitive edges.
+
+  Before proving our contradiction, we first prove several important properties of the cycle,
+  as well as two lemmas.
+
+  \noindentparagraph{Property 1.} The cycle contains at least two actions.
+  This follows from the definitions of $<_M$, $<_{P_i}$, $<_U$, and $<_S$.
+
+  \noindentparagraph{Property 2.} The cycle does not contain two consecutive
+  $<_{P_i}$ edges or two consecutive $<_U$ edges. Otherwise, a shorted cycle
+  exists since $<_{P_i}$ and $<_U$ are transitive.
+
+  \noindentparagraph{Property 3.} The cycle does not contain two consecutive
+  $<_M$ edges or two consecutive $<_S$. This follows from the definitions of
+  $<_M$ and $<_S$.
+
+  \begin{lemma}
+    Let $\pi_1 \caused_{\alpha^\prime} \ldots \caused_{\alpha^\prime} \pi_n$
+    be a sequence of $n$ actions connected only by
+    $<_{P_i}$, $<_U$, and $<_S$ edges (i.e., no $<_M$ edges), and further
+    assume $\pi_1$ is a message receive action and $\pi_n$ is a message
+    send action. Then, $\pi_1 \rt_{\alpha^\prime} \pi_n$.
+    \label{lemma:helper1}
+  \end{lemma}
+
+  \begin{proof}
+    TODO
+  \end{proof}
+
+  \begin{lemma}
+    Let $\pi_1 \caused_{\alpha^\prime} \ldots \caused_{\alpha^\prime} \pi_n$
+    be a sequence of $n$ actions connected any of $<_M$, $<_{P_i}$, $<_U$,
+    and $<_S$ edges, and further assume $\pi_1$ is a message receive action
+    and $\pi_n$ is a message send action. Then, $\pi_1 \rt_{\alpha^\prime} \pi_n$.
+    \label{lemma:helper2}
+  \end{lemma}
+    TODO
+  \begin{proof}
+    
+  \end{proof}
+
+  We now leverage these lemmas to conclude the proof, so recall that
+  $\pi_1 \caused_{\alpha^\prime} \pi_2 \caused_{\alpha^\prime} \ldots \caused_{\alpha^\prime} \pi_1$
+  is a shortest cycle. We proceed by cases:
+
+  First, assume the cycle contains at least one $<_M$ edge. Then the cycle can be written as
+  $\pi_1 <_M1 \pi_2 \caused_{\alpha^\prime} \ldots \pi_2 \caused_{\alpha^\prime} \pi_n \pi_2 \caused_{\alpha^\prime} \pi_1$ 
+  by re-indexing the actions as needed. By the assumption that $\alpha$ is well-formed,
+  the fact that $\alpha^\prime$ preserved the order of $\alpha$'s non-system-facing actions,
+  and the definition of $\pi_1 <_M \pi_2$, it is clear that $\pi_1 \rt_{\alpha^\prime} \pi_2$.
+  But $\pi_2 \caused_{\alpha^\prime} \ldots \pi_2 \caused_{\alpha^\prime} \pi_n \pi_2 \caused_{\alpha^\prime} \pi_1$
+  is a sequence of actions connected by $<_M$, $<_{P_i}$, $<_U$, and $<_S$ edges
+  starting with a receive action ($\pi_2$) and ending with a send action ($\pi_1$),
+  so by Lemma~\ref{lemma:helper2}, $\pi_2 \rt_{\alpha^\prime} \pi_1$, which is a contradiction.
+
+  Now assume the cycle does not contain any $<_M$ edges. Since there are no messages in
+  the cycle, there are two sub-cases: the cycle comprises either only $<_U$ edges or alternating
+  $<_{P_i}$ and $<_S$ edges (by Properties 2 and 3).
+
+  In the former case, a cycle contradicts the definition of $<_U$, so we turn to the latter.
+  Note that all $P_i$ in the $<_{P_i}$ must be distinct, otherwise a shorter cycle must exist.
+  For each $\pi_i <_{P_i} \pi_{i+1}$, we know that $\pi_i$ is an invocation action and
+  $\pi_{i+1}$ is a response action. Further, by similar reasoning as in Lemma~\ref{lemma:helper1},
+  we know that $\op(\pi_i)$ must precede $\op(\pi_{i+1})$ in $S$. Thus, for each $\pi_i <_{P_i} \pi_{i+1}$,
+  we can expand it to include the invocations and responses of all operations in $S$ between $\op(\pi_i)$
+  and $\op(\pi_{i+1})$ (if any). This (no longer shortest) cycle implies there is a cycle
+  over operations in $S$. But this contradicts the definition of \MDL{}, which guarantees a total order
+  over all operations and which was used to instantiate $S$. Thus, $\caused_{\alpha^\prime}$ is acyclic,
+  and combined with the definitions of $<_M$, $<_{P_i}$, $<_U$, and $<_S$, this also shows
+  it is irreflexive.
+
+  Let $\beta$ be a topological sort of $\caused_{\alpha^\prime}$ on the actions in
+  $\alpha^\prime$. To conclude the proof, we show $\beta$ is well-formed,
+  satisfies \singledispatch{} real-time precedence, and is externally equivalent to $\alpha$.
+
+  The fact that $\beta$ is a well-formed execution of $U \times C \times A$ follows
+  from the definition of $\caused_{\alpha^\prime}$. It preserves the order of actions
+  in $U$, which were unaltered in the transformation from $\alpha$ to $\alpha^\prime$.
+  Similarly, it preserves the order of each message's send-to and receive-from actions,
+  and their order was also unaltered in producing $\alpha^\prime$. Finally, the original
+  transformation to $\alpha^\prime$ placed the actions of eacch $\alpha^\prime | P_i$ in
+  the order dictated by $A$'s program order, and this was preserved by
+  $\caused_{\alpha^\prime}$ in producing $\beta$.
+
+  By the initial reordering of to produce $\alpha^\prime$ and the definition of
+  $\caused_{\alpha^\prime}$, the system-facing actions are now \singledispatch{} in $\beta$.
+  In fact, by the defintion $\caused_{\alpha^\prime}$, accesses are now sequential
+  (across all processes) in the order defined by $S$. Since $S$ defined a total order over all
+  operations, $\beta$ thus satisfies \singledispatch{} real-time precedence.
+
+  Finally, since the initial transformation from $\alpha$ to $\alpha^\prime$ did not alter
+  the order of actions in $U$, clearly $\alpha | U = \alpha^\prime | U$. Then by the defintion
+  of $\caused_{\alpha^\prime}$, $\alpha^\prime | U = \beta | U$. Thus, $\beta$ is externally
+  equivalent to $\alpha$.
+\end{proof}
