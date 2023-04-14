@@ -2,13 +2,63 @@
 \label{sec:mdl}
 
 In this section, we first define \multidispatch{} linearizability. 
-We then show how applications built atop an \MDL{} system appear behave
-identically (as far as users can tell) to the same application interacting
+We then show how applications built atop an \MDL{} system appear
+to behave identically (as far as users can tell) to the same application interacting
 with a comparable \SDL{} system. Finally, we discuss existing implementations
-of \SDL{} for single-shard systems. 
+of \MDL{} for single-shard systems and why they do not trivially extend to more
+shards. 
 
-\subsection{Definition}
+\subsection{Preliminaries}
+\label{sec:mdl:preliminaries}
+
+In this section, we provide a precise definition of \multidispatch{} linearizability.
+We extend the formalism used by Herlihy et al.~\cite{herlihy1990linearizability}.
+
+We model an \textit{application} as a collection of \textit{processes}. Application
+processes interact with shared \textit{systems} (e.g., a key-value store). Each system
+has a unique \textit{name} and a \textit{type}. The latter defines the system's possible
+\textit{states} as well as the \textit{operations} processes can use to interact with it.
+
+A \textit{history} $H$ is a sequence of operation \textit{invocations} and \textit{responses}
+representing an execution of the application processes interacting with the system.
+We assume each operation is uniquely identifiable and is \textit{complete}, comprising
+a \textit{matching} invocation-response pair, or is just a \textit{pending} invocation,
+which lacks a matching response. Given a history $H$, $\complete(H)$ is the history
+found by removing any incomplete operations from $H$.
+
+A \textit{sequential history} $S$ is one comprising a sequence of matching invocation-response
+pairs. A system's \textit{sequential specification} is a prefix-closed set of sequential histories
+defining the system's correct behaviors in the absence of concurrency. For instance, a
+key-value store's sequential specification would contain all histories such any read of key $k$
+returns the value of the write to $k$ that precedes it in the history (or \texttt{null} if no
+such write exists). A history is \textit{legal} if it is in the sequential specification.
+
+A \textit{process sub-history} $H|P$ is the subsequence of all invocations and responses
+in $H$ invoked or received by the application process $P$. To define \MDL{}, we relax the
+assumption made by Herlihy et al.~\cite{herlihy1990linearizability} that process sub-histories
+(i.e., their interactions with the system) are sequential. Instead, we say a history $H$
+is \textit{well-formed} if the following hold for each process sub-history $H|P$:
+(1) $H|P$ starts with an invocation, and (2) for each operation $o$, if $\res(o)$ is in $H$,
+it follows (not necessarily immediately) $\inv(o)$. We consider only well-formed histories.
+
+Given a history $H$, $H||P$ is a \textit{sequentialization} of $H|P$. $H||P$ is
+found by, for each complete operation $o$ in $H|P$, shifting $\res(o)$ left (earlier) in $H|P$
+until it immediately follows $\inv(o)$. Note that if $H|P$ is sequential, then $H|P = H||P$.
+
+\subsection{\Multidispatch{} Linearizability}
 \label{sec:mdl:def}
+
+A history $H$ induces an irreflexive partial order $<_H$ on operations: $o_1 <_H o_2$ if and only if
+one of the following holds: (1) $\res(o_1)$ precedes $\inv(o_2)$ in $H$, or (2) $o_1$ and $o_2$
+belong to the same process and $\inv(o_1)$ precedes $\inv(o_2)$.
+
+A history $H$ is \multidispatch{} linearizable if it can be extended, by appending one or more
+responses, to some history $H^\prime$ such that:
+\begin{enumerate}
+    \item There exists some legal sequential history $S$ such that for all $P$,
+    $\complete(H^\prime)||P = S|P$, and
+    \item $<_{H^\prime} \subseteq <_S$.
+\end{enumerate}
 
 \subsubsection{Failure Semantics}
 
