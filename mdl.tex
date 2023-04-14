@@ -60,15 +60,31 @@ responses, to some history $H^\prime$ such that:
     \item $<_{H^\prime} \subseteq <_S$.
 \end{enumerate}
 
-\subsubsection{Failure Semantics}
+Since $H|P = H||P$ if $H|P$ is sequential, under Herlihy et al.'s original assumption
+that processes are sequential, our definition matches that of
+Linearizability~\cite{herlihy1990linearizability}.
 
-We define \mdl failures as follows: a group of outstanding requests issued by a client will induce a prefix-closed set of success responses followed by a set of failed responses. It is possible that all of the requests succeed, and the set of failed responses will be empty. Importantly, if a request fails, all concurrent requests invoked by the same client with greater sequence numbers will also fail.
+\subsubsection{Suffix-Closed Failures}
+\label{sec:mdl:def:failures}
+
+There is an important implication for system designers baked into the definition above.
+In systems where operations can fail (even temporarily before being retried), the effects
+of an operation cannot be exposed to other processes until all of its predecessors are
+guaranteed to succeed. Doing so would violate the intuitively correct behavior of most
+systems, and formally, this would result in $\complete(H^\prime)||P \neq S|P$ for all legal
+sequential histories $S$. We refer to this property as \textit{suffix-closed failure semantics}.
+
+In a \multidispatch{} linearizable system, we must ensure suffix-closed failures even in the
+face of concurrent operations from the same process. The challenge arises because in practice,
+these operations can be to objects on different shards. As we will see in
+Section~\ref{sec:mdl:zookeeper}, guaranteeing suffix-closed failures is one way in which
+existing systems fail to correctly implement \multidispatch{} linearizability.  
 
 \subsection{External Equivalence}
 \label{sec:mdl:equivalence}
 
-\subsection{\MDL{} on One Shard}
-\label{sec:mdl:single-shard}
+\subsection{\MDL{} Beyond One Shard}
+\label{sec:mdl:zookeeper}
 
 In this section, we discuss Zookeeper and its implementation of \SDL{}.
 We also show how such an approach does not extend to multiple shards.
