@@ -35,10 +35,11 @@
 % 1. what are the key features it needs to do. which component of the protocol does that.
 % 2. include parts in the motivation that describe why you can't simply do "X". and then in design you can refer to motivation...
 
-\sys{} achieves two competing goals: First, it guarantees \multidispatch{}
-linearizability, even in the face of concurrent requests both within
-and across clients that span multiple shards. Second, it offers lower
-end-to-end application compared to a similar Linearizable system.
+\sys{} achieves two goals simultaneously: First, it guarantees \multidispatch{}
+linearizability of concurrent requests both within and across clients that span
+multiple shards. Second, it achieves lower end-to-end application compared to a
+similar (single-dispatch) Linearizable system, while providing the equivalent
+ordering guarantees. To do so, \sys{} employs three techniques:
 
 % Design V1: Clients issue multiple ops and send coordination requests to prior ops
 % (as in our protocol). Ops are buffered at shard leaders until they are "coordinated."
@@ -47,11 +48,27 @@ end-to-end application compared to a similar Linearizable system.
 % Problem: e2e = N * QRT + (N-1) * RTT/2
 % Solution: Decouple fault-tolerance from ordering.
 
-To do so, \sys{} employs three techniques: First, to satisfy \MDL{}'s
-suffix-complete failure semantics, \sys{} clients orchestrate coordination
-between its operations. More specifically, this coordination ensures
-an operation's predecessor commits (and is thus fault-tolerant) before
-the operation itself commits.
+First, \sys{} clients orchestrate coordination between concurrent operations to
+satisfy \MDL{}'s suffix-complete failure semantics. This coordination satisfy's
+\MDL{}'s suffix-complete failure semantics by ensuring that an operation's
+predecessors commits (and is thus fault-tolerant) before the operation itself
+commits.
+
+Second, \sys{} decouples fault-tolerance from ordering by batching each shard's
+log into ordering \textit{epochs}. A \sys{} shard replicates and commits
+operations as soon as they arrive, but waits to order them as part of an
+\textit{epoch}. This allows many concurrent operations to be made fault tolerant
+in parallel, deferring ordering to a later sequential step that is amortized
+over the operations in an epoch.
+
+Finally, \sys{} uses Lamport timestamps to guarantee ordering respects
+per-client issue order. During the ordering step, a shard assigns a Lamport
+timestamp to a committed operation based on the local timestamp and the
+timestamp of the operation's dependents.
+
+\sys{}'s full client and shard protocols are specified in
+Algorithms~\ref{clientprotocol} and~\ref{shardprotocol} for the client and
+server, respectively. We describe each of three techniques in depth below.
 
 % Design V2: Divide log into epochs. Replicate ops in current epoch immediately and allow
 % them to send coordination responses. This preserves failure semantics because op is now
@@ -60,39 +77,38 @@ the operation itself commits.
 % Problem: Ops within epoch may not respect issue order across clients.
 % Solution: Propagate Lamport timestamps and sort ops in epoch by timestamps.
 
-As discussed in Section~\ref{fig:concurrentbatches}, naively allowing
-a client's operations to be ordered separately at multiple shards can lead
-to violations of \MDL{}'s invocation-order guarantees. But many existing
-state-machine replication protocols, including Raft, couple fault-tolerance
-and ordering. Thus, it would seem that to guarantee both per-client issue order
-and suffix-complete failure semantics, each operation must wait to replicate
-until after its predecessor finishes replicating (and thus being ordered).
-Unfortunately, the end-to-end latency of an application issuing $N$ operations
-to such a system would be approximately $N$ times one quorum round-trip plus
-one inter-shard message. This is worse than linearizable Raft, which just requires
-one quorum round-trip per operation.
+%% OLD design intro. Some info lost above so make sure it's in the actual sub-sections
 
-To offer lower end-to-end application latency, \sys{} thus decouples
-fault-tolerance from ordering by dividing each shard's log into \textit{epochs}.
-An operation is first replicated as part of a \textit{pending operation set},
-after which it can notify its successor. This replication can proceed in
-parallel for all operations in a client's sequence. At the end of each epoch,
-the operations in the pending operation set are ordered by placing them into
-the shard's log, requiring a second quorum round trip.     
-
-% Design V3: Our full protocol.
-
-Finally, to ensure per-client issue order is respected both within and across
-shard epochs, \sys{} assigns each operation a Lamport timestamp and sorts each
-epoch's operations by their timestamps. Upon arrival at a shard, an operation
-is assigned an initial, tentative timestamp based on the maximum of the timestamps of
-all operations that have been replicated and coordinated previously at the shard.
-Operations then propagate these timestamps to the successors in their coordination
-messages, and successors update their timestamps to always be greater than their
-predecessors.
-
-We now discuss each of these techniques in turn. \sys{}'s full client and shard
-protocols are specified in Algorithms~\ref{clientprotocol} and~\ref{shardprotocol}. 
+%As discussed in Section~\ref{fig:concurrentbatches}, naively allowing
+%a client's operations to be ordered separately at multiple shards can lead
+%to violations of \MDL{}'s invocation-order guarantees. But many existing
+%state-machine replication protocols, including Raft, couple fault-tolerance
+%and ordering. Thus, it would seem that to guarantee both per-client issue order
+%and suffix-complete failure semantics, each operation must wait to replicate
+%until after its predecessor finishes replicating (and thus being ordered).
+%Unfortunately, the end-to-end latency of an application issuing $N$ operations
+%to such a system would be approximately $N$ times one quorum round-trip plus
+%one inter-shard message. This is worse than linearizable Raft, which just requires
+%one quorum round-trip per operation.
+%
+%To offer lower end-to-end application latency, \sys{} thus decouples
+%fault-tolerance from ordering by dividing each shard's log into \textit{epochs}.
+%An operation is first replicated as part of a \textit{pending operation set},
+%after which it can notify its successor. This replication can proceed in
+%parallel for all operations in a client's sequence. At the end of each epoch,
+%the operations in the pending operation set are ordered by placing them into
+%the shard's log, requiring a second quorum round trip.
+%
+%% Design V3: Our full protocol.
+%
+%Finally, to ensure per-client issue order is respected both within and across
+%shard epochs, \sys{} assigns each operation a Lamport timestamp and sorts each
+%epoch's operations by their timestamps. Upon arrival at a shard, an operation
+%is assigned an initial, tentative timestamp based on the maximum of the timestamps of
+%all operations that have been replicated and coordinated previously at the shard.
+%Operations then propagate these timestamps to the successors in their coordination
+%messages, and successors update their timestamps to always be greater than their
+%predecessors.
 
 % Jeff: I think this is mostly covered (or will be) in the previous two sections.
 % Existing protocols that provide \sdl assume clients abide by the restriction to single-dispatch requests, having at most one outstanding request at a time. This assumption comes from the definition of linearizability, which requires individual clients to behave sequentially. These protocols, such as Paxos, Raft, Viewstamped Replication, Zab, do not provide any guarantees on the order that concurrent requests issued from a single client take effect. Our definition of \md specifies that concurrent requests issued from a single client take effect in invocation order. 
@@ -105,54 +121,65 @@ protocols are specified in Algorithms~\ref{clientprotocol} and~\ref{shardprotoco
 
 % Since all requests can not be known a priori, we make use of epochs at each shard, and guarantee sorted execution order within each epoch, as well as a safe ordering across epochs. With this approach, we can prune request interleavings that might lead to cycles upfront, rather than running cycle detection and subsequently failing execution. While this unnecessarily prevents some subset of safe interleavings, the latter scales poorly for very large cycles.
 
-\subsection{Client-Driven Coordination}
-
-Operations in a multi-shard system can fail independently, e.g., during leader failure at one shard. 
-When clients issue multiple operations
-concurrently, this also makes it possible for an earlier operation to fail while a later
-operation succeeds. But such a case would violate \MDL{}'s suffix-complete failure semantics.  
-\sys{} thus introduces client-driven \textit{coordination requests (CR)} between shards to preserve these semantics.
-
-When each client submits an operation to a shard, in parallel it also submits a CR
-to the shard of its predecessor operation with the identity of the shard of its successor.
-For some operation issued by client $C$
-with sequence number $s$, a predecessor operation is defined as the concurrent
-operation that client $C$ issued with sequence number $s-1$. If client $C$ does not
-have any other outstanding operations, then the operation's predecessor is
-\texttt{null}.
-
-An operation is considered \textit{replicated} once it has been acknowledged by a
-quorum of replicas. Further, it is considered \textit{coordinated} if the shard has
-received a \textit{coordination response} from the shard leader of the operation's predecessor.
-(Operations without a predecessor are vacuously coordinated.)
-Upon receiving a coordination request, a shard first waits until the operation is
-replicated and coordinated and then sends a coordination response to the shard leader
-of its successor. This inductively guarantees all of an operation's predecessors will
-eventually succeed.
-
 \subsection{Decoupling Fault-Tolerance \& Ordering}
 
-\sys{} decouples fault-tolerance and ordering to allow operations to allows shards to process operations
-from the same client in parallel. This is key to \sys{}'s ability to offer lower end-to-end application
-latency.
+Naively ordering a client's concurrent operations independently at multiple
+shards, as many existing state-machine replication protocols do, would violation
+\MDL{}'s invocation-order guarantee. On the other hand, blocking operations on
+one shard on the completion of previously-invoked operations on other shards in
+these systems would be impractically slow. The problem is that existing
+state-machine replication protocols couple fault-tolerance and
+ordering---e.g.\ leaders replicate both the operation itself and its order in
+the log simultaneously. In order to guarantee suffix-complete failure semantics,
+operations cannot be replicated until their predecessors have also been
+replicated.
 
-Shards divide their execution into a series of \textit{epochs}. The epoch length is a system parameter,
-and epochs need not be synchronized across shards.
+%The end-to-end latency of an application issuing $N$ operations to
+%such a system would be approximately $N$ times one quorum round-trip plus one
+%inter-shard message. This is worse than linearizable Raft, which just requires
+%one quorum round-trip per operation.
 
-Each operation then requires two rounds between a shard leader and a quorum of its replicas.
-When the operation arrives at the shard leader, it is replicated first for fault-tolerance
-and placed in an unordered pending operation set. As mentioned above, this also allows the shard
-leader to respond to a coordination request if the operation has a successor. At the end of the epoch,
-the shard leader places all of the operations that have been replicated and coordinated
-since the end of the last epoch into its (ordered) log and sends a second message to a quorum of
-replicas to commit this order. (We describe how the leader orders requests in more detail in the next
-section.)
+A key insight of \sys{} is to decouple fault-tolerance from ordering, allowing
+replication of concurrent operations to proceed in parallel on different shards.
+Shards first replicate operations as part of an unordered \textit{pending
+operation set}. By replicating this set, the shard can return to the client
+immediately, as operations in this set are guaranteed to be ordered \emph{at
+some point}, even under, e.g., leader changes.
 
-Operations may fail to be included in the current epoch for one of two reasons:
-(1) they may time out while waiting to receive a coordination response from their predecessor,
-which we implement by bounding the number of epochs during which it can exist in the pending operation set,
-or (2) they may receive an explicit FAIL response for its coordination response. The latter can happen
-if, for instance, a leader failure occurred at one of the predecessors' shards.
+Shards then, asynchronously, coordinate concurrent operations from the same
+client to establish a relative order. Once a shard learns that all predecessors
+of a pending operation have been coordinated, it can move that operation into
+the ordered log.
+
+%by dividing each shard's log into \textit{epochs}.  An operation is first
+%replicated as part of a \textit{pending operation set}, after which it can
+%notify its successor. This replication can proceed in parallel for all
+%operations in a client's sequence. At the end of each epoch, the operations in
+%the pending operation set are ordered by placing them into the shard's log,
+%requiring a second quorum round trip.
+
+As a result, each operation requires two rounds between a shard leader and a
+quorum of its replicas.  When the operation arrives at the shard leader, it is
+replicated first for fault-tolerance and placed the pending operation set. The
+leader must also replicate the \emph{order} of each operation after it has
+coordinated to establish an order with shards responsible for previous requests
+from the same client.
+
+\sys{} amortizes replication of the order by dividing the execution of
+operations at each shard into a series of \textit{epochs}. At the end of each
+epoch, operations from the pending set that have been coordinated are sorted
+(Section~\ref{sec:design:timestamps}) and their order replicated to a quarum
+in batch.
+
+Operation in the pending set may fail to be included in the current epoch for
+one of two reasons: (1) they may time out while waiting to receive a
+coordination response from their predecessor, which we implement by bounding the
+number of epochs during which it can exist in the pending operation set, or (2)
+they may receive an explicit FAIL response for its coordination response. The
+latter can happen if, for instance, a leader failure occurred at one of the
+predecessors' shards.
+
+\al{I don't understand the FAIL thing}
 
 An operation that has been included in the ordered log at both a leader and a quorum of replicas
 is considered \textit{ordered}. Leaders and replicas execute ordered requests in the same fashion
@@ -172,7 +199,32 @@ of the one-way cross-shard latency as the number of operations increases. In con
 the latency of applications using a \singledispatch{} system scales by a factor of the
 quorum round-trip latency. Our evaluation in Section~\ref{sec:eval} bears out this claim.
 
-\subsection{Lamport Timestamps For Issue Order}
+\subsection{Client-Driven Coordination}
+
+Operations in a multi-shard system can fail independently, e.g., during leader failure at one shard.
+When clients issue multiple operations
+concurrently, this also makes it possible for an earlier operation to fail while a later
+operation succeeds. But such a case would violate \MDL{}'s suffix-complete failure semantics.
+\sys{} thus introduces client-driven \textit{coordination requests (CR)} between shards to preserve these semantics.
+
+When each client submits an operation to a shard, in parallel it also submits a CR
+to the shard of its predecessor operation with the identity of the shard of its successor.
+For some operation issued by client $C$
+with sequence number $s$, a predecessor operation is defined as the concurrent
+operation that client $C$ issued with sequence number $s-1$. If client $C$ does not
+have any other outstanding operations, then the operation's predecessor is
+\texttt{null}.
+
+An operation is considered \textit{replicated} once it has been acknowledged by a
+quorum of replicas. Further, it is considered \textit{coordinated} if the shard has
+received a \textit{coordination response} from the shard leader of the operation's predecessor.
+(Operations without a predecessor are vacuously coordinated.)
+Upon receiving a coordination request, a shard first waits until the operation is
+replicated and coordinated and then sends a coordination response to the shard leader
+of its successor. This inductively guarantees all of an operation's predecessors will
+eventually succeed.
+
+\subsection{Lamport Timestamps For Issue Order}\label{sec:design:timestamps}
 
 To ensure operations end up in a valid \MDL{} order, \sys{} assigns each operation a Lamport timestamp.
 Operations are then sorted by their timestamp values (using arrival time at the shard to break ties)
