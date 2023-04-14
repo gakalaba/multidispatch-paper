@@ -1,87 +1,132 @@
 \section{\Multidispatch{} Linearizability}
 \label{sec:mdl}
 
-In this section, we first define \multidispatch{} linearizability. 
+In this section, we first define \multidispatch{} linearizability.
 We then show how applications built atop an \MDL{} system appear
 to behave identically (as far as users can tell) to the same application interacting
 with a comparable \SDL{} system. Finally, we discuss existing implementations
 of \MDL{} for single-shard systems and why they do not trivially extend to more
-shards. 
+shards.
 
-\subsection{Preliminaries}
-\label{sec:mdl:preliminaries}
+We leverage the formalism used in Helt et al.~\cite{helt2021rss}.
 
-In this section, we provide a precise definition of \multidispatch{} linearizability.
-We extend the formalism used by Herlihy et al.~\cite{herlihy1990linearizability}.
+\subsection{Users, Applications, \& Executions}
+\label{sec:mdl:applications}
 
-We model an \textit{application} as a collection of \textit{processes}. Application
-processes interact with shared \textit{systems} (e.g., a key-value store). Each system
-has a unique \textit{name} and a \textit{type}. The latter defines the system's possible
-\textit{states} as well as the \textit{operations} processes can use to interact with it.
+We model a distributed \textit{application} as a collection of $n$
+\textit{processes}. Processes are state machines~\cite{lynch1987ioa,lynch1996da}
+that implement application logic by performing local computation, exchanging
+messages, and invoking operations on systems.
 
-A \textit{history} $H$ is a sequence of operation \textit{invocations} and \textit{responses}
-representing an execution of the application processes interacting with the system.
-We assume each operation is uniquely identifiable and is \textit{complete}, comprising
-a \textit{matching} invocation-response pair, or is just a \textit{pending} invocation,
-which lacks a matching response. Given a history $H$, $\complete(H)$ is the history
-found by removing any incomplete operations from $H$.
+An application's processes define a prefix-closed set of \textit{executions},
+which are sequences $s_0,\pi_1,s_1,\ldots$ of alternating \textit{states} and
+\textit{actions}, starting and ending with a state. An application state
+contains the state of each process---it is an $n$-length vector of process
+states. As part of a process's state, we assume it has access to a local
+clock, which it can use to set local timers, but the clock makes no guarantees
+about its drift or skew relative to those at other processes.
 
-A \textit{sequential history} $S$ is one comprising a sequence of matching invocation-response
-pairs. A system's \textit{sequential specification} is a prefix-closed set of sequential histories
-defining the system's correct behaviors in the absence of concurrency. For instance, a
-key-value store's sequential specification would contain all histories such any read of key $k$
-returns the value of the write to $k$ that precedes it in the history (or \texttt{null} if no
-such write exists). A history is \textit{legal} if it is in the sequential specification.
+Each action is a step taken by exactly one process and is one of three types:
+\textit{internal}, \textit{input}, or \textit{output}. Internal actions model
+local computation. Processes use input and output actions to interact with other
+processes (e.g., receiving and replying to a remote procedure call) and their
+environment (e.g., responding to a user gesture). As we will describe in the
+following section, a subset of the input and output actions are
+\textit{invocations} and \textit{responses}, respectively, which are used to
+interact with systems.
 
-A \textit{process sub-history} $H|P$ is the subsequence of all invocations and responses
-in $H$ invoked or received by the application process $P$. To define \MDL{}, we relax the
-assumption made by Herlihy et al.~\cite{herlihy1990linearizability} that process sub-histories
-(i.e., their interactions with the system) are sequential. Instead, we say a history $H$
-is \textit{well-formed} if the following hold for each process sub-history $H|P$:
-(1) $H|P$ starts with an invocation, and (2) for each operation $o$, if $\res(o)$ is in $H$,
-it follows (not necessarily immediately) $\inv(o)$. We consider only well-formed histories.
+Processes can also exchange messages with one another via unidirectional
+channels. To send a message to process $P_j$, $P_i$ uses two actions: first,
+$P_i$ uses an output action $\sendto_{ij}(m)$ and later, an input action
+$\sent_{ij}$ occurs, indicating $m$'s transmission on the network. Similarly, to receive a
+message from $P_i$, $P_j$ first uses an output action $\request_{ij}$ and later,
+an input action $\receive_{ij}(m)$ occurs, indicating the receipt of $m$.
 
-Given a history $H$, $H||P$ is a \textit{sequentialization} of $H|P$. $H||P$ is
-found by, for each complete operation $o$ in $H|P$, shifting $\res(o)$ left (earlier) in $H|P$
-until it immediately follows $\inv(o)$. Note that if $H|P$ is sequential, then $H|P = H||P$.
+Given an execution $\alpha$, we will often refer to an individual process's
+\textit{sub-execution}, denoted $\alpha|P_i$. $\alpha|P_i$ comprises
+only $P_i$'s actions and the $i$th component of each state in $\alpha$.
 
-\subsection{\Multidispatch{} Linearizability}
+\noindentparagraph{Well-formed.} An execution is \textit{well-formed} if it
+satisfies the following: (1) Messages are sent before they are received; (2) A
+process has at most one (total) outstanding invocation (at a system)
+or $\request_{ij}$ (at a channel); and (3) Processes do not take output steps while
+waiting for a response from a system. We henceforth only consider well-formed executions.
+
+TODO: Update definition of well-formed.
+% A \textit{process sub-history} $H|P$ is the subsequence of all invocations and responses
+% in $H$ invoked or received by the application process $P$. To define \MDL{}, we relax the
+% assumption made by Herlihy et al.~\cite{herlihy1990linearizability} that process sub-histories
+% (i.e., their interactions with the system) are sequential. Instead, we say a history $H$
+% is \textit{well-formed} if the following hold for each process sub-history $H|P$:
+% (1) $H|P$ starts with an invocation, and (2) for each operation $o$, if $\res(o)$ is in $H$,
+% it follows (not necessarily immediately) $\inv(o)$. We consider only well-formed histories.
+
+TODO: Add users.
+
+TODO: Define $||$.
+% Given a history $H$, $H||P$ is a \textit{sequentialization} of $H|P$. $H||P$ is
+% found by, for each complete operation $o$ in $H|P$, shifting $\res(o)$ left (earlier) in $H|P$
+% until it immediately follows $\inv(o)$. Note that if $H|P$ is sequential, then $H|P = H||P$.
+
+\subsection{Systems}
+\label{sec:mdl:systems}
+
+Databases, message queues, and other back-end \textit{systems} that application
+processes interact with are defined by their \textit{operations} and a
+\textit{specification}~\cite{herlihy1990linearizability,lynch1996da}. An
+\textit{operation} comprises pairs of \textit{invocations}, specifying the
+operations and their arguments, and matching \textit{responses}, containing
+return values. The specification is a prefix-closed set of sequences of
+invocation-response pairs defining the system's correct behavior in the absence
+of concurrency. A sequence $S$ in specification $\spec$ defines a total order
+over its operations, denoted $<_S$.
+
+\subsection{Definition}
 \label{sec:mdl:def}
 
-A history $H$ induces an irreflexive partial order $<_H$ on operations: $o_1 <_H o_2$ if and only if
-one of the following holds: (1) $\res(o_1)$ precedes $\inv(o_2)$ in $H$, or (2) $o_1$ and $o_2$
-belong to the same process and $\inv(o_1)$ precedes $\inv(o_2)$.
+We are now ready to define two (last) preliminaries and then our new consistency model.
 
-A history $H$ is \multidispatch{} linearizable if it can be extended, by appending one or more
-responses, to some history $H^\prime$ such that:
-\begin{enumerate}
-    \item There exists some legal sequential history $S$ such that for all $P$,
-    $\complete(H^\prime)||P = S|P$, and
-    \item $<_{H^\prime} \subseteq <_S$.
-\end{enumerate}
+\noindentparagraph{Complete operations.} Given an execution $\alpha$, we say an
+operation is \textit{complete} if its invocation has a matching response in
+$\alpha$. We denote $\complete(\alpha)$ as the maximal subsequence of $\alpha$
+comprising only complete operations~\cite{herlihy1990linearizability}.
 
-Since $H|P = H||P$ if $H|P$ is sequential, under Herlihy et al.'s original assumption
-that processes are sequential, our definition matches that of
-Linearizability~\cite{herlihy1990linearizability}.
+\noindentparagraph{Real-time order.} Two actions in an execution $\alpha$ are
+ordered in real
+time~\cite{herlihy1990linearizability}, denoted
+$\pi_1 \rt_\alpha \pi_2$, if and only if $\pi_1$ is a response, $\pi_2$ is an
+invocation, and $\pi_1$ precedes $\pi_2$ in $\alpha$.
+
+\noindentparagraph{\Multidispatch{} Linearizability.} Let $\mathcal{O}$ be the
+set of all operations. An execution $\alpha_1$ satisfies \textit{\MDL{}} if it
+can be extended to $\alpha_2$ by adding zero or more responses such that there
+exists a sequence $S \in \spec$ where (1) for all $P$,
+$S|P = \complete(\alpha_2)||P$; and (2) for all pairs of operations
+$o_1,o_2 \in \mathcal{O}$, $o_1 \rt_{\alpha_1} o_2 \implies o_1 <_S o_2$.
 
 \subsubsection{Suffix-Closed Failures}
 \label{sec:mdl:def:failures}
 
-There is an important implication for system designers baked into the definition above.
+\MDL{}'s definition has an important implication for system designers.
 In systems where operations can fail (even temporarily before being retried), the effects
 of an operation cannot be exposed to other processes until all of its predecessors are
 guaranteed to succeed. Doing so would violate the intuitively correct behavior of most
-systems, and formally, this would result in $\complete(H^\prime)||P \neq S|P$ for all legal
-sequential histories $S$. We refer to this property as \textit{suffix-closed failure semantics}.
+systems, and formally, this would result in $S|P \neq \complete(\alpha_2)||P$ for all legal
+sequential histories $S \in \spec$. We refer to this property as
+\textit{suffix-closed failure semantics}.
 
-In a \multidispatch{} linearizable system, we must ensure suffix-closed failures even in the
-face of concurrent operations from the same process. The challenge arises because in practice,
-these operations can be to objects on different shards. As we will see in
-Section~\ref{sec:mdl:zookeeper}, guaranteeing suffix-closed failures is one way in which
-existing systems fail to correctly implement \multidispatch{} linearizability.  
+In an \MDL{} system, suffix-closed failures must be guaranteed even in the
+face of concurrent operations from the same process, which in practice may to
+objects on different shards. As we will see in Section~\ref{sec:mdl:zookeeper},
+guaranteeing suffix-closed failures is one way in which existing systems fail
+to correctly implement \multidispatch{} linearizability.  
 
 \subsection{External Equivalence}
 \label{sec:mdl:equivalence}
+
+\noindentparagraph{Equivalence.} Two executions $\alpha$ and $\beta$ are
+\textit{equivalent} if for all $P_i$, $\alpha|P_i = \beta|P_i$. Intuitively,
+equivalent executions are indistinguishable to the processes.
 
 \subsection{\MDL{} Beyond One Shard}
 \label{sec:mdl:zookeeper}
