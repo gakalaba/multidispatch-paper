@@ -95,6 +95,8 @@
 
 %%%%% Formalism %%%%%
 % Theorems
+% \newtheorem{theorem}{Theorem}[section]
+% \newtheorem{sublemma}{Lemma}[theorem]
 \renewcommand{\qedsymbol}{$\blacksquare$}
 
 % Histories
@@ -145,7 +147,8 @@
 \newcommand{\rt}{\rightarrow} % Real-time
 
 % Transformation
-\DeclareMathOperator*{\transform}{\textit{transform}}
+\DeclareMathOperator*{\transform}{\textit{parallel}}
+\DeclareMathOperator*{\revtrans}{\textit{seq}}
 
 %%%%% END Formalism %%%%%
 
