@@ -50,8 +50,8 @@ There are three challenges in providing \mdl across shards:
 and
 (3) providing lower end-to-end latency than sequential single-dispatch Linearizable operations.
 
-We present \sys{}, the first design for providing cross-shard \mdl{}.
-\sys{}'s design includes two phases: a parallel fault tolerance phase and then a sequential coordination phase.
+We present \sys{}, the first protocol for providing cross-shard \mdl{}.
+\sys{} includes two phases: a parallel fault tolerance phase and then a sequential coordination phase.
 In the fault tolerance phase, operations are replicated via Raft~\cite{raft} as soon as they arrive at their relevant shards.
 In the coordination phase, operations are coordinated and then executed by the shards \textit{after} a client's previous operation via `coordination request' messages that are sent directly from shard to shard.
 This sequential coordination is key to enforcing both the client issue order and the suffix-complete failure semantics:
@@ -90,6 +90,6 @@ In summary, the contributions of this paper include:
 \begin{itemize}[leftmargin=*]
 \item The definition of \mdllong{}.
 \item A proof of external equivalence between an application running on \sdl{} and a transformation of it running on \mdl{}.
-\item The first design for cross-shard \mdl{}: \sys{}.
+\item The first protocol for cross-shard \mdl{}: \sys{}.
 \item An implementation and evaluation of \sys{} that shows \true{approaches half latency for application requests compared to a Linearizable baseline as fanout increases.}
 \end{itemize}
