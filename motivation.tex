@@ -13,8 +13,8 @@ users to upload and share their photos with other users.
 In our example application, photos are organized into
 albums. Both photos and albums are stored in a distributed,
 linearizable~\cite{herlihy1990linearizability} key-value store
-using a unique key. A photo’s key maps to a binary blob, and
-an album’s key maps to structured data containing the keys of
+using a unique key. A photo's key maps to a binary blob, and
+an album's key maps to structured data containing the keys of
 all of its photos. If a key is read but is not present, the
 key-value store simply returns \texttt{null}.
 
@@ -32,7 +32,7 @@ returning the aggregated contents to the user.
 
 \subsection{Consistency Models \& App Latency}
 
-Programmers rely on a system’s consistency model while building their applications. By defining the system’s set of allowed behaviors, a consistency model permits programmers to ignore the system’s implementation and instead focus on ensuring their applications are correct given these behaviors.
+Programmers rely on a system's consistency model while building their applications. By defining the system's set of allowed behaviors, a consistency model permits programmers to ignore the system's implementation and instead focus on ensuring their applications are correct given these behaviors.
 
 \wl{It would be great to include an additional example of many system interactions beyond the Facebook paper, especially if it wasn't from a hyperscaler}
 
@@ -46,22 +46,22 @@ will incur significant application latency.
 
 Programmers can modify their applications to issue system operations concurrently
 and thus reduce application latency. But doing so violates one of the consistency
-model’s assumptions, potentially causing unspecified system behavior,
+model's assumptions, potentially causing unspecified system behavior,
 which in turn may break their application.
 
 To illustrate this problem, consider our example application above.
 When uploading a photo, since the key-value store guarantees
 linearizability~\cite{herlihy1990linearizability} and the application issues the
-insert(s) and read-modify-write operations sequentially, then a photo’s blob will
+insert(s) and read-modify-write operations sequentially, then a photo's blob will
 always exist in the store once its key is visible in an album.
 If it issues the operations concurrently, however, their effects may appear in either order,
-so a photo’s key may appear in an album before its blob is readable.
+so a photo's key may appear in an album before its blob is readable.
 The application code to view an album will therefore need to be fixed to handle this new case.
 
 Although the fix for our example application is relatively straightforward,
-reasoning about the system’s behavior in such cases (and how it impacts application behavior)
+reasoning about the system's behavior in such cases (and how it impacts application behavior)
 can quickly become complex.
-Fixing applications also forces programmers to consider the system’s implementation,
+Fixing applications also forces programmers to consider the system's implementation,
 diminishing the usefulness of the consistency model.
 
 In the following sections, we propose a new multi-issue consistency model, multi-issue linearizability, to begin to remedy this tension. Multi-issue linearizability explicitly allow applications to issue operations concurrently. Consequently, it enables applications to achieve lower end-to-end latency. Provided programmers obey a set of rules when parallelizing their applications (described in Section~\ref{sec:}), an application interacting with a multi-issue linearizability system will behave identically to the original application interacting with a linearizable system. Thus, programmers can reap these performance benefits without fear of breaking their applications.
