@@ -60,11 +60,13 @@ This coordination satisfy's \MDL{}'s suffix-complete failure semantics by
 ensuring that all of an operation's predecessors are fault tolerant before the
 operation itself ordered.
 
+\wl{It's not just that we're using lamport timestamps. It's that we're assigning them when an operation is coordinated, which happens-after a client's earlier operations are coordinated, which ensures later operations are globally ordered after earlier operations.}
+
 
 Finally, \sys{} uses Lamport timestamps to guarantee ordering respects
-per-client issue order. During the ordering step, a shard assigns a Lamport
-timestamp to a committed operation based on the local timestamp and the
-timestamp of the operation's dependents.
+per-client issue order. During the ordering step, a shard assigns a
+Lamport timestamp to a committed operation based on the local
+timestamp and the timestamp of the operation's dependents.
 
 \sys{}'s full client and shard protocols are specified in
 Algorithms~\ref{clientprotocol} and~\ref{shardprotocol} for the client and
@@ -162,11 +164,15 @@ quorum of replicas is considered \textit{ordered}. Leaders and replicas execute
 ordered requests in the same fashion as Raft~\cite{ongaro2014raft}, and leaders
 respond to clients after executing an operation.
 
+\wl{I would prefer the states be pending -> committed -> coordinated -> ordered. If we just ‘queue’ the coordinated messages until an operation is committed and only deliver them then, then it seems like it has the same behavior to me and is easier to explain/understand because we transition sequentially through 4 states. AL and I agree this makes more sense.}
+
+
 Note that committing an operation for fault-tolerance, and coordinating it to
 ensure invocation order with predecessors happen asynchronously. This allows
 concurrent operations to be committed in parallel, and coordination to make
 progress concurrently with commitment, deferring ordering until both have
 completed.
+
 
 However, as a result, each operation requires two rounds between a shard leader
 and a quorum of its replicas. When the operation arrives at the shard leader, it
@@ -177,6 +183,10 @@ execution of operations at each shard into a series of \textit{epochs}. At the
 end of each epoch, operations from the pending set that have been coordinated
 are sorted (Section~\ref{sec:design:timestamps}) and their order replicated to a
 quarum in batch.
+
+\wl{I don't think we need the following paragraph, or at least we don't need it here. I don't think something is ``FAILING'' to be included, it's just not being included yet. You haven't said anything that suggests to me that operations are moved from the pending set in the same order they arrived, so the following paragraph just adds confusion and overhead for me.}
+
+\wl{Instead what I think we need is an explicit slash-paragraph discussion of failures and how we ensure suffix-complete failure semantics.}
 
 Operation in the pending set may fail to be included in the current epoch for
 one of two reasons: (1) they may time out while waiting to receive a
@@ -230,6 +240,8 @@ from the shard leader of the operation's predecessor.  (Operations without a
 predecessor are vacuously coordinated.)
 
 \subsection{Lamport Timestamps For Issue Order}\label{sec:design:timestamps}
+
+\wl{When is this timestamp assigned? I think it's exactly when an operation is 'coordinated'}
 
 To ensure operations end up in a valid \MDL{} order, \sys{} assigns each operation a Lamport timestamp.
 Operations are then sorted by their timestamp values (using arrival time at the shard to break ties)
