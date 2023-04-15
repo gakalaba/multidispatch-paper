@@ -16,3 +16,15 @@
 \definecolor{wblue}{RGB}{30, 120, 173}
 \newcommand{\wl}[1]{\note{worange}{W: #1}}
 \newcommand{\al}[1]{\note{wblue}{AL: #1}}
+
+
+\newcommand{\true}[1]{\textcolor{blue}{[true: #1]}}
+\definecolor{rgreen}{RGB}{0, 112, 60}
+\newcommand{\tbd}[1]{\textcolor{rgreen}{#1}}
+\newcommand{\todo}[1]{\textcolor{red}{TODO: #1}}
+
+\ifthenelse{\not\equal{\showComments}{yes}}{%
+\renewcommand{\true}[1]{#1}
+\renewcommand{\tbd}[1]{#1}
+\renewcommand{\todo}[1]{}
+}{}
