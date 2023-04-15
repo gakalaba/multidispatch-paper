@@ -221,39 +221,6 @@ First, for all $P_i$, $\trace(\alpha) | \system(P_i)$ must be a sequence of alte
 \subsection{Proof}
 \label{sec:equivalence:proof}
 
-We begin this section by first proving two useful lemmas.
-We then use these lemma to prove our main result.
-
-\subsubsection{Reverse Transform}
-
-Suppose $A = \prod_i P_i$ is an IOA defining an application that interacts with a linearizable service,
-and let $A^\prime = \transform(A) = \prod_i P_i^\prime$ be the IOA defining the transformed application that
-interacts with a comparable \multidispatch{} linearizable service. We start by defining
-a function $\revtrans$ that takes an execution $\alpha^\prime$ of
-$U \times C \times A^\prime$ and outputs an execution $\alpha$ of $U \times C \times A$.
-
-Observe that by the original restrictions on $A$ and rules 4, 5, 6, and 7 in the definition
-of $\transform$, each $\alpha^\prime | P_i^\prime$ comprises sub-sequences of local and
-system-facing actions separated by non-system-facing external actions. Further, by rule 5
-of $\transform$, the order of the non-system-facing external actions in each $\alpha^\prime | P_i^\prime$
-respects the program order of the original application $A$.
-
-Using this observation, we define $\revtrans$ as follows: We first reorder the actions in
-each sub-sequence of each $\alpha^\prime | P_i^\prime$ by reversing the
-transformation, placing the local and system-facing actions such that they respect the program
-order of $A$. More precisely, $\revtrans$ works as follows:
-for any two actions $\pi_1$, $\pi_2$ such that $\pi_1$ precedes $\pi_2$ in $\alpha^\prime$ but such
-an ordering violates $A$'s program order, shift $\pi_2$ left in $\alpha^\prime$ until it precedes $\pi_2$.
-Let $\alpha$ be the resulting execution after applying this to all pairs of actions in $\alpha^\prime$.
-
-Note that by the observation about each $\alpha^\prime | P_i^\prime$ above, the order of non-system-facing
-external actions in $\alpha$ respects also respects $A$'s program order (because $A^\prime$'s is identical).
-Further, each $\alpha | P_i$ now issues system operations sequentially. Thus, $\alpha$ is an execution of
-$U \times C \times A$.
-
-These operations, however,
-may not be linearizable.
-
 \begin{theorem}
   Suppose $A$ is an IOA defining an application that interacts with a linearizable service,
   and let $A^\prime = \transform(A)$ be the IOA defining the transformed application that
@@ -303,7 +270,7 @@ may not be linearizable.
   \end{enumerate}
 
   We posit $\caused_{\alpha^\prime}$ defines an irreflexive partial order over the actions
-  in $\alpha^\prime$. Clearly it is transitive; we now prove it is acyclic and irreflexive.
+  in $\alpha^\prime$. Clearly it is irreflexive and transitive; we now prove it is acyclic.
 
   For sake of contradiction, assume $\caused_{\alpha^\prime}$ contains at least one cycle. Let
   $\pi_1 \caused_{\alpha^\prime} \pi_2 \caused_{\alpha^\prime} \ldots \caused_{\alpha^\prime} \pi_1$
@@ -323,14 +290,14 @@ may not be linearizable.
   $<_M$ edges or two consecutive $<_S$. This follows from the definitions of
   $<_M$ and $<_S$.
 
-  \begin{sublemma}
+  \begin{lemma}
     Let $\pi_1 \caused_{\alpha^\prime} \ldots \caused_{\alpha^\prime} \pi_n$
     be a sequence of $n$ actions connected only by
     $<_{P_i}$, $<_U$, and $<_S$ edges (i.e., no $<_M$ edges), and further
     assume $\pi_1$ is a message receive action and $\pi_n$ is a message
     send action. Then, $\pi_1 \rt_{\alpha^\prime} \pi_n$.
     \label{lemma:helper1}
-  \end{sublemma}
+  \end{lemma}
 
   \begin{proof}
     TODO

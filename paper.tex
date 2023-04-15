@@ -96,8 +96,8 @@
 
 %%%%% Formalism %%%%%
 % Theorems
-% \newtheorem{theorem}{Theorem}[section]
-% \newtheorem{sublemma}{Lemma}[theorem]
+\newtheorem{thm}{Theorem}[section]
+\newtheorem{lem}{Lemma}[thm]
 \renewcommand{\qedsymbol}{$\blacksquare$}
 
 % Histories
@@ -148,8 +148,7 @@
 \newcommand{\rt}{\rightarrow} % Real-time
 
 % Transformation
-\DeclareMathOperator*{\transform}{\textit{parallel}}
-\DeclareMathOperator*{\revtrans}{\textit{seq}}
+\DeclareMathOperator*{\transform}{\textit{transform}}
 
 %%%%% END Formalism %%%%%
 
@@ -207,10 +206,10 @@ acknowledging. Sorry.
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{paper,venues}
 
-\clearpage
-\appendix
+% \clearpage
+% \appendix
 
-\input{equivalence.tex}
+% \input{equivalence.tex}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \end{document}
