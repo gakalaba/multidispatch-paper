@@ -15,67 +15,57 @@ We leverage the formalism used in Helt et al.~\cite{helt2021rss}.
 
 We model a distributed \textit{application} as a collection of $n$
 \textit{processes}. Processes are state machines~\cite{lynch1987ioa,lynch1996da}
-that implement application logic by performing local computation, exchanging
-messages, and invoking operations on systems.
+that implement application logic by receiving messages from and sending replies
+to users, performing local computation, exchanging inter-process messages, and
+invoking operations on systems.
 
 An application's processes define a prefix-closed set of \textit{executions},
 which are sequences $s_0,\pi_1,s_1,\ldots$ of alternating \textit{states} and
 \textit{actions}, starting and ending with a state. An application state
-contains the state of each process---it is an $n$-length vector of process
-states. As part of a process's state, we assume it has access to a local
-clock, which it can use to set local timers, but the clock makes no guarantees
-about its drift or skew relative to those at other processes.
+is an $n$-length vector containing each process's state.
+
+% As part of a process's state, we assume it has access to a local
+% clock, which it can use to set local timers, but the clock makes no guarantees
+% about its drift or skew relative to those at other processes.
 
 Each action is a step taken by exactly one process and is one of three types:
 \textit{internal}, \textit{input}, or \textit{output}. Internal actions model
 local computation. Processes use input and output actions to interact with other
-processes (e.g., receiving and replying to a remote procedure call) and their
-environment (e.g., responding to a user gesture). As we will describe in the
+processes (e.g., receiving and replying to a remote procedure call) and
+users (e.g., responding to an HTTP request). As we describe in the
 following section, a subset of the input and output actions are
 \textit{invocations} and \textit{responses}, respectively, which are used to
 interact with systems.
 
-Processes can also exchange messages with one another via unidirectional
+Processes exchange messages with one another via unidirectional
 channels. To send a message to process $P_j$, $P_i$ uses two actions: first,
 $P_i$ uses an output action $\sendto_{ij}(m)$ and later, an input action
 $\sent_{ij}$ occurs, indicating $m$'s transmission on the network. Similarly, to receive a
 message from $P_i$, $P_j$ first uses an output action $\request_{ij}$ and later,
 an input action $\receive_{ij}(m)$ occurs, indicating the receipt of $m$.
+We assume users interact with processes through similar such channels. 
 
 Given an execution $\alpha$, we will often refer to an individual process's
 \textit{sub-execution}, denoted $\alpha|P_i$. $\alpha|P_i$ comprises
 only $P_i$'s actions and the $i$th component of each state in $\alpha$.
 
 \noindentparagraph{Well-formed.} An execution is \textit{well-formed} if it
-satisfies the following: (1) Messages are sent before they are received; (2) A
-process has at most one (total) outstanding invocation (at a system)
-or $\request_{ij}$ (at a channel); and (3) Processes do not take output steps while
-waiting for a response from a system. We henceforth only consider well-formed executions.
+satisfies the following: (1) Messages are sent before they are received; and
+(2) Processes may have multiple outstanding $\request_{ij}$ actions
+(at one or more channels) or invocations (at the system) but may not have
+both types outstanding simultaneously. We henceforth only consider well-formed
+executions.
 
-TODO: Update definition of well-formed.
-% A \textit{process sub-history} $H|P$ is the subsequence of all invocations and responses
-% in $H$ invoked or received by the application process $P$. To define \MDL{}, we relax the
-% assumption made by Herlihy et al.~\cite{herlihy1990linearizability} that process sub-histories
-% (i.e., their interactions with the system) are sequential. Instead, we say a history $H$
-% is \textit{well-formed} if the following hold for each process sub-history $H|P$:
-% (1) $H|P$ starts with an invocation, and (2) for each operation $o$, if $\res(o)$ is in $H$,
-% it follows (not necessarily immediately) $\inv(o)$. We consider only well-formed histories.
-
-TODO: Add users.
-
-TODO: Define $||$.
-% Given a history $H$, $H||P$ is a \textit{sequentialization} of $H|P$. $H||P$ is
-% found by, for each complete operation $o$ in $H|P$, shifting $\res(o)$ left (earlier) in $H|P$
-% until it immediately follows $\inv(o)$. Note that if $H|P$ is sequential, then $H|P = H||P$.
+TODO: Find better way to express users.
 
 \subsection{Systems}
 \label{sec:mdl:systems}
 
-Databases, message queues, and other back-end \textit{systems} that application
-processes interact with are defined by their \textit{operations} and a
+Application processes interact with a back-end \textit{system} (e.g., a database),
+which is defined by its \textit{operations} and a
 \textit{specification}~\cite{herlihy1990linearizability,lynch1996da}. An
 \textit{operation} comprises pairs of \textit{invocations}, specifying the
-operations and their arguments, and matching \textit{responses}, containing
+operation's arguments, and matching \textit{responses}, containing
 return values. The specification is a prefix-closed set of sequences of
 invocation-response pairs defining the system's correct behavior in the absence
 of concurrency. A sequence $S$ in specification $\spec$ defines a total order
@@ -84,12 +74,18 @@ over its operations, denoted $<_S$.
 \subsection{Definition}
 \label{sec:mdl:def}
 
-We are now ready to define two (last) preliminaries and then our new consistency model.
+We are now ready to define the last few preliminaries and then our new consistency model.
 
 \noindentparagraph{Complete operations.} Given an execution $\alpha$, we say an
 operation is \textit{complete} if its invocation has a matching response in
 $\alpha$. We denote $\complete(\alpha)$ as the maximal subsequence of $\alpha$
 comprising only complete operations~\cite{herlihy1990linearizability}.
+
+\noindentparagraph{Sequentialization.} Given a sequence of complete actions,
+$\complete(\alpha)$, we define $\complete(\alpha)||P$ as the \textit{sequentialization}
+of $P$'s operations in $\complete(\alpha)$ (i.e., $\complete(\alpha)|P$).
+$\complete(\alpha)||P$ is found by, for each operation $o$, shifting $\res(o)$ left
+in $\complete(\alpha)|P$ until it immediately follows $\inv(o)$.
 
 \noindentparagraph{Real-time order.} Two actions in an execution $\alpha$ are
 ordered in real
@@ -224,7 +220,7 @@ sake of brevity, however, we omit its proof.
     \label{lem:helper2}
 \end{lem}
 
-We now conclude the proof. We proceed by cases:
+We continue the proof by cases:
 
 First, assume the cycle contains at least one $<_M$ edge. Then the cycle can be written as
 $\pi_1 <_M1 \pi_2 \caused_{\alpha} \ldots \caused_{\alpha} \pi_n \caused_{\alpha} \pi_1$ 
