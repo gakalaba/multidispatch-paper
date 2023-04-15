@@ -1,2 +1,46 @@
 \section{Introduction}
 \label{sec:intro}
+
+* Consistency models are contract between application and system.\\
+** affect application correctness and how easy it is to write correct programs through guarantees.\\
+** affect application latency through both operation latency and interface\\
+
+* linearizability is one of the dominant consistency models\\
+** used in really important places\\
+** provides strong consistency that is easy to reason about: single machine executing operations one at a time in the order they are received.\\
+** BUT, it restricts applications to a single outstanding request!\\
+** in contrast, many modern application want to have many outstanding requests to minimize latency\\
+** example\\
+
+* in this paper we modernize linearizability by introducing multi-dispatch linearizability\\
+** linearizability where clients can have many outstanding requests and requests are ordered by the system in the order they are issued\\
+** builds on intuition developed by earlier work such a zookeeper's a-linearizability or the combination of session guarantees and linearizability\\
+** contribution is a formal definition of multi-dispatch linearizability that makes the contract between systems and applications clear\\
+*** first model to precisely capture this for all operations? (unlike a-linearizability)\\
+*** for instance, suffix-failure semantics\\
+** In turn, this formal model allow us to study \mdl\\
+
+* Typically new consistency models require programmers to reason about new models of behavior from the system, which requires programmers learn the new model and reason about them correctly\\
+** Instead of requiring this heavy lift from programmers, we allow them to instead reason about linearizability, which they are familiar with and that is simple to reason about\\
+** This is possible because we identify a sufficient set of conditions for transforming a single-dispatch program, A, into a multi-dispatch program A$^\prime$ that we prove is \textit{externally equivalent} to A, i.e., external observers cannot tell the difference between A running on a single-dispatch linearizable system and a A$^\prime$ running on a multi-dispatch linearizable system.\\
+** Thus programmers can specify and reason about their program as they currently do, and then apply our simple transformations to take advantage of the latency benefits of \mdl{} while knowing their program still has the exact same external behavior.\\
+
+%* with the greater power for programmers and the possibility of parallel requests from a single client comes a new responsibility to implement these new constraints in underlying systems
+
+* While some designs exist that provide \mdl on a single shard, to the best of our knowledge there are no existing designs that provide \mdl across shards\\
+** We present \sys{}, the first design for providing cross-shard \mdl{}\\
+** The key insight of \sys is ...\\
+
+* \sys{} provides \mdl with x, y, and z techniques\\
+** it adds latency compared to \sdl for a single operation\\
+** however, the ability to dispatch client operations in parallel enables lower end-to-end application latency\\
+** typically we expect the latency of \mdl to be roughly half the latency of \sdl issuing operations sequentially\\
+
+* we implement and evaluate \sys{}\\
+** ...
+
+* contributions:\\
+** define \mdl{}\\
+** prove external equivalent between A$^\prime$ on \mdl{} and A on \sdl{} when our sufficient conditions are used to transform A to A$^\prime$\\
+** present the first design for cross-shard \mdl{}: \sys{}.\\
+** implement and evaluate \sys{} to show it halves latency for most application requests compared to a \sdl system...\\
