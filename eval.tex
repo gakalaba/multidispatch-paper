@@ -106,7 +106,11 @@ Our experimental setup consists of a 9-node cluster and 2 client machines.
 Each machine has 1 Intel Xeon-D processor with 8 physical cores running at 2 GHz with hyperthreading enabled, 64 GB of DDR4-2133 RAM, and a 10 Gb/s NIC. 
 The roundtrip latency between all machines is around 150 $\mu$s, thus intershard, intrashard, and client-leader latencies are all equal. 
 Each shard contains 3 replicas, all placed on different physical machines. For multi-sharded experiments we place shard leaders on different physical machines as well. 
-We set the epoch length for \system to 1 ms.
+We set the epoch length for \system to 1 ms.alev
+
+\al{combine experimental set-up and client design. get rid of metrics, workload,
+failures and replace with, approximately, one sentence each in the experimental
+setup or eval intro}
 
 \subsection{Client Design}
 We evenly distribute client processes across the 2 client machines. Client processes submit application-level requests. Each application-level request submits $n$ system-level subrequests, where $n$ is equal to the fanout parameter for a given experiment. For single-dispatch clients interacting with \mpaxos, only a single system-level subrequest is in-flight at a time, the next subrequest is not issued until the response is received for the preceding subrequest. For multi-dispatch clients interacting with \system, all $n$ system-level subrequests are in-flight at the same time, each is submitted in order and does not wait until the response is received for the preceding subrequest.
@@ -139,10 +143,18 @@ In this section, we compare the end-to-end application request latency for \syst
 
 For each fanout value, we select the number of clients that saturates \system, and plot the p99 and p50 latency for both \system and \mpaxos with that number of clients. Note, this selection for number of clients does not always saturate \mpaxos.
 
-Figures ~\ref{fig:1shardp99} and ~\ref{fig:1shardp50} show the throughput latency curves for ranging fanout values of application-level requests. Since our implementation uses an epoch value of 1ms, \system is unable to match \mpaxos until around fanout 10, but outperforms for large fanout values of $100$ and $1000$.
+Figures ~\ref{fig:1shardp99} and ~\ref{fig:1shardp50} show the throughput latency curves for ranging fanout values of application-level requests. Since our implementation uses an epoch value of 1ms, \system is unable to match \mpaxos until around fanout 10, but outperforms for large fanout values of $100$ and $1000$. \al{By how much?! Be extremely concrete. Outperform could be 1\% or 10x}
 
 In the single-shard setting, this improvement is most sensitive to our selection of epoch length, as well as the relationship between this value and leader-replica roundtrip latencies. 
 The coordination overhead on a single shard is much smaller as compared to the multi-shard setting since there is no leader-to-leader communication. We notice a substantial improvement for latencies at fanouts $100$ and $1000$.
+
+\al{Is there \emph{any} coordination overhead? Again, be more crisp and
+concrete. For example (not sure this is true): Because there is no (or virtually
+no) coordination overhead in the single-shard setting, \protocol{}'s performance
+is dictated primarily by the epoch length and the intra-shard latency. As a
+result, with our epoch length of 10ms, \protocol{} lags behind \mpaxos{} until
+fan-out reaches approximately the ratio of intra-shard latency and epoch length
+(about 10x).}
 
 \subsection{Multi-Shard}
 \label{sec:shards}
