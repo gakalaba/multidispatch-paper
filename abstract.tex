@@ -1,6 +1,7 @@
 \begin{abstract}
-    
-This paper is very abstract
-Your abstract text goes here. Just a few facts. Whet our appetites.
-Not more than 200 words, if possible, and preferably closer to 150.
+
+  Linearizability is the strongest consistency model, guaranteeing that operations execute in a total global order across all clients in a manner that respects real-time. Programmers who interact with linearizable services experience easy-to-reason-about sequential behavior, just like if they were programming on a single machine. Unfortunately, the definition of linearizability constrains clients to only dispatch single operations at a time and await a response before issuing the next one. Clients that do not behave sequentially are not guaranteed a linearizable ordering over their operations, breaking the easy-to-reason-about semantics.
+  
+In this paper, we introduce Multi-dispatch Linearizability (MDL), a new consistency model that extends Linearizability to allow individual clients to issue multiple concurrent requests at a time. Removing this constraint in MDL improves per-request end-to-end latency and aggregate throughput across clients, while guaranteeing a linearization that respects invocation order. To demonstrate this, we design, implement, and evaluate MDL. Our system is able to decrease end-to-end latency for batched requests by a factor proportional to the batch size. Finally, we prove that, for applications correctly transformed to multi-dispatch requests, external users cannot tell the difference between applications atop linearizable services and applications atop multi-dispatch linearizable services.
+  
 \end{abstract}
