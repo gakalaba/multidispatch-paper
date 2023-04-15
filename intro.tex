@@ -1,2 +1,64 @@
 \section{Introduction}
 \label{sec:intro}
+
+\wl{ I like this text:\\
+*** ``Programmers will not need to
+reason about all the interleavings of concurrent operations from an execution with all potential
+interleavings of all other executions. Instead, they will need only reason about their application’s
+correctness when run on a Linearizable system with single-dispatch: if their application is correct
+in that setting, it will be correct when run on an md-Linearizability system while also gaining the
+latency benefit of using multi-dispatch''}
+
+
+
+Linearizability is one of the most widely used consistency models.
+It is what is provided by Paxos~\cite{paxos}, RAFT~\cite{raft}, and PBFT~\cite{pbft} among many others.
+Linearizability has the same guarantees as a single machine that processes operations one at a time in the order it receives them over a network.
+This makes it a `strong' consistency model that has very intuitive behavior for programmers to reason about.
+
+Linearizability was defined 36 years ago~\cite{linearizability87, linearizability} and thus predates many developments and trends in computing.
+One major trend is the use of \textit{multi-dispatch}---i.e., application clients concurrently dispatch multiple operations---which decreases application latency.
+Linearizability specifically disallows this behavior and instead requires \textit{single-dispatch} where a client may only have a single outstanding request at a time.
+This mismatch yields two unfortunate outcomes.
+If an application is restricted to single-dispatch when run on a Linearizable system, it gets the guarantees of Linearizability by loses out on the latency improvements from concurrency.
+Or if an application issues multi-dispatch operations against a Linearizable system, it gets the latency improvements from concurrency by the guarantees from Linearizability are lost.
+
+This paper introduces \mdllong{} (\mdl) a consistency model similar to Linearizability that allows concurrent client requests and requires the system to appear to order them in the same order a client issues them.
+\Mdl{} builds on intuition developed by earlier work such as A-Linearizability introduced by zookeeper~\cite{a-linearizability} and session guarantees~\cite{session-guarantees} for intuitively allowing multiple client requests.
+\Mdl{} is unique from this earlier work because it targets providing \true{Linearizability-like consistency for all operations, is formally specified, and introduces suffix-complete failure semantics}.
+We argue these make it a natural and elegant extension of Linearizability for multi-dispatch.
+
+%* in this paper we modernize linearizability by introducing multi-dispatch linearizability\\
+%** linearizability where clients can have many outstanding requests and requests are ordered by the system in the order they are issued\\
+%** builds on intuition developed by earlier work such a zookeeper's a-linearizability or the combination of session guarantees and linearizability\\
+%** contribution is a formal definition of multi-dispatch linearizability that makes the contract between systems and applications clear\\
+%*** first model to precisely capture this for all operations? (unlike a-linearizability)\\
+%*** for instance, suffix-failure semantics\\
+%** In turn, this formal model allow us to study \mdl\\
+
+Typically new consistency models require programmers learn about a new set of potential behaviors from system and learn how to reason about them correctly.
+Instead of requiring this heavy lift from programmers, we allow them to instead reason about Linearizability, which they are familiar with and that is relatively simple to reason about.
+This is possible because we identify a sufficient set of conditions for transforming a single-dispatch program, A, into a multi-dispatch program A$^\prime$ that we prove is \textit{externally equivalent} to A, i.e., external observers cannot tell the difference between A running on a (single-dispatch) Linearizable system and a A$^\prime$ running on a \mdl{} system.
+Thus programmers can specify and reason about their program as they currently do, and then apply our simple transformations to take advantage of the latency benefits of \mdl{} while knowing their program \true{is still correct}.
+
+%* with the greater power for programmers and the possibility of parallel requests from a single client comes a new responsibility to implement these new constraints in underlying systems
+
+While some designs exist that provide \mdl{} on a single shard~\cite{ongaro_thesis}, to the best of our knowledge there are no existing designs that provide \mdl{} across shards.
+We present \sys{}, the first design for providing cross-shard \mdl{}.\\
+** The key insight of \sys{} is ...\\
+
+* \sys{} provides \mdl{} with x, y, and z techniques\\
+** it adds latency compared to \sdl{} for a single operation\\
+** however, the ability to dispatch client operations in parallel enables lower end-to-end application latency\\
+** typically we expect the latency of \mdl{} to be roughly half the latency of \sdl{} issuing operations sequentially\\
+
+* we implement and evaluate \sys{}\\
+** ...
+
+In summary, the contributions of this paper include:
+\begin{itemize}[leftmargin=*]
+\item define \mdl{}
+\item prove external equivalent between A$^\prime$ on \mdl{} and A on \sdl{} when our sufficient conditions are used to transform A to A$^\prime$
+\item present the first design for cross-shard \mdl{}: \sys{}.
+\item implement and evaluate \sys{} to show it halves latency for most application requests compared to a \sdl{} system...
+\end{itemize}
