@@ -1,6 +1,6 @@
 \section{Implementation}
 \label{sec:implementation}
-We implemented \protocol by modifying the existing implementation of basic \mpaxos from the EPaxos codebase ~\ref{} written in Go. To provide a fair comparison against the \mpaxos baseline, we change as little as possible within the existing framework. Both \protocol and Paxos have single threaded leaders and replicas, neither have operation type-specific optimizations (such as read leases), both use the thrifty optimization, and neither use batching for fault-tolerance. The existing framework implements a replicated key-value store.
+We implemented \system by modifying the existing implementation of basic \mpaxos from the EPaxos codebase ~\ref{} written in Go. To provide a fair comparison against the \mpaxos baseline, we change as little as possible within the existing framework. Both \system and Paxos have single threaded leaders and replicas, neither have operation type-specific optimizations (such as read leases), both use the thrifty optimization, and neither use batching for fault-tolerance. The existing framework implements a replicated key-value store.
 
 We extend the message types each replica handles to include our coordination and final ordering messages, and we use a Golang ticker object ~\cite{} to implement epochs. It's worth noting the inaccuracy of Golang tickers for values below 2ms ~\ref{}, thus for most of our experiments (which have an epoch shorter than 2ms) there is noticeable variability for epoch length.
 
