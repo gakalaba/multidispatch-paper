@@ -1,8 +1,9 @@
 \section{Implementation}
 \label{sec:implementation}
+We implemented \protocol by modifying the existing implementation of basic \mpaxos from the EPaxos codebase ~\ref{} written in Go. To provide a fair comparison against the \mpaxos baseline, we change as little as possible within the existing framework. Both \protocol and Paxos have single threaded leaders and replicas, neither have operation type-specific optimizations (such as read leases), both use the thrifty optimization, and neither use batching for fault-tolerance. The existing framework implements a replicated key-value store.
 
-We implemented \mdl within the EPaxos framework by modifying the existing implementation of \mpaxos. Our prototype implements a key-value store and consists of 2800 lines of Golang code, not including the testing framework. Our code and experimental scripts are available online ~\cite{code22}. 
-% Should the LoC be total or the number of added LOC to existing multi-paxos?
+We extend the message types each replica handles to include our coordination and final ordering messages, and we use a Golang ticker object ~\cite{} to implement epochs. It's worth noting the inaccuracy of Golang tickers for values below 2ms ~\ref{}, thus for most of our experiments (which have an epoch shorter than 2ms) there is noticeable variability for epoch length.
 
+Since \sdl is composable, the unmodified \mpaxos clients submit requests to the leader of a single shard. We extended the client library so that clients issue requests to multiple shard leaders, since we evaluate the multi-sharded setting. Clients keep track of a per-shard sequence number, and when requests are concurrent, they submit coordination requests to the shard leaders holding predecessor requests.
 
-Since \sdl is composable, the unmodified \mpaxos clients submit requests to the leader of a single shard. We extend the clients to issue requests to multiple shard leaders. Clients keep track of a per-shard sequence number, and when requests are concurrent, they include a nonempty dependency set consisting of the previously submitted outstanding requests.
+The code and experimental scripts are available online ~\cite{}.

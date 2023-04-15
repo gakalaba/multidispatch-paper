@@ -98,7 +98,7 @@ protocols are specified in Algorithms~\ref{clientprotocol} and~\ref{shardprotoco
 % Existing protocols that provide \sdl assume clients abide by the restriction to single-dispatch requests, having at most one outstanding request at a time. This assumption comes from the definition of linearizability, which requires individual clients to behave sequentially. These protocols, such as Paxos, Raft, Viewstamped Replication, Zab, do not provide any guarantees on the order that concurrent requests issued from a single client take effect. Our definition of \md specifies that concurrent requests issued from a single client take effect in invocation order. 
 
 \begin{figure}[!htb]
-\includegraphics[scale=.3]{sorted_batching_wrong.png}
+\includegraphics[scale=.3]{figs/sorted_batching_wrong.png}
 \caption{Example execution of sorted batching without coordination requirement. This execution leads to an incorrect execution that contains a cycle and is not \mdl. The execution is the same execution as that of figure \ref{fig:concurrentbatches}, but now the second request issued by each client arrives in an earlier epoch. Even if sorted in their respective epochs, they are not ordered across epochs without coordination.}
 \label{fig:sortedbatchingwrong}
 \end{figure}
@@ -219,7 +219,7 @@ We provide a full proof of correctness in ~\ref{}.
 \subsection{Leader Failure}
 % what are our failure semantics?
 
-
+\begin{comment}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%% Client %%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -307,3 +307,4 @@ We provide a full proof of correctness in ~\ref{}.
     \caption{MD-Lin Shard Leader}
     \label{shardprotocol}
 \end{algorithm}
+\end{comment}

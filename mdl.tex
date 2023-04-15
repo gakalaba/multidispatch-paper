@@ -24,7 +24,7 @@ In this section, we discuss Zookeeper and its implementation of \SDL{}.
 We also show how such an approach does not extend to multiple shards.
 
 \begin{figure}[!htb]
-    \includegraphics[scale=.45]{somet.png}
+    \includegraphics[scale=.45]{figs/somet.png}
     \caption{Example execution where two concurrent clients each submit 2 concurrent requests. Assume keys \textbf{X} and \textbf{Y} are at different shards. It is possible that $R_2$ arrives before $W_1$ at shard \textbf{X}, and $W_2$ arrives before $R_1$ at shard \textbf{Y}. Since clients expect their concurrent requests to take affect in invocation order, if $R_1$ returns 1, then $W_1$ must have taken affect before $R_1$, so $R_2$ should necessarily return a value of 1.}
     \label{fig:concurrentbatches}
 \end{figure}

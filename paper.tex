@@ -72,13 +72,14 @@
 \usepackage{filecontents}
 \usepackage{float}
 \usepackage{graphicx}
+\usepackage{subfig}
 \usepackage[font=small,skip=1pt]{caption}
 
 \usepackage{algpseudocode}
 \usepackage[linesnumbered,ruled]{algorithm2e}
 
 % Names
-\newcommand*{\sys}{Blam-Boom}
+\newcommand*{\sys}{Ellis}
 \newcommand*{\SDL}{SDL}
 \newcommand*{\MDL}{MDL}
 \newcommand*{\singledispatch}{single-dispatch}
@@ -91,7 +92,7 @@
 \def \mdl  {Multi-dispatch Linearizability\xspace}
 \def \sd  {SDL\xspace}
 \def \md  {MDL\xspace}
-\def \protocol {Blam-Boom\xspace}
+\def \protocol {Ellis\xspace}
 
 %%%%% Formalism %%%%%
 % Theorems
@@ -187,6 +188,7 @@
 
 \input{design.tex}
 
+\input{implementation.tex}
 \input{eval.tex}
 
 \input{related.tex}
