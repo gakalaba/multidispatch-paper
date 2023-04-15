@@ -12,33 +12,33 @@
 \begin{figure*}[!htb]
 \centering
 \subfloat[1 shard p99]{
-  \includegraphics[scale=.2]{figs/1shardp99.png}
+  \includegraphics[scale=.6]{figs/1shardp99.png}
   \label{fig:1shardp99}
 }
 \subfloat[1 shard p50]{
-  \includegraphics[scale=.2]{figs/1shardp50.png}
+  \includegraphics[scale=.6]{figs/1shardp50.png}
   \label{fig:1shardp50}
 }
 \hspace{0mm}
 % 3 shards p99 + p50
 \centering
 \subfloat[3 shard p99]{
-  \includegraphics[scale=.2]{figs/3shardp99.png}
+  \includegraphics[scale=.6]{figs/3shardp99.png}
   \label{fig:3shardp99}
 }
 \subfloat[3 shard p50]{
-  \includegraphics[scale=.2]{figs/3shardp50.png}
+  \includegraphics[scale=.6]{figs/3shardp50.png}
   \label{fig:3shardp50}
 }
 \hspace{0mm}
 % 9 shards p99 + p50
 \centering
 \subfloat[9 shard p99]{
-  \includegraphics[scale=.2]{figs/9shardp99.png}
+  \includegraphics[scale=.6]{figs/9shardp99.png}
   \label{fig:9shardp99}
 }
 \subfloat[9 shard p50]{
-  \includegraphics[scale=.2]{figs/9shardp50.png}
+  \includegraphics[scale=.6]{figs/9shardp50.png}
   \label{fig:9shardp50}
 }
 \caption{p99 and p50 for various shard settings.}
@@ -49,7 +49,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{figure*}[!htb]
 \centering
-\subfloat[skew\xspace0.5]{
+\subfloat[skew\xspace0.]{
   \includegraphics[scale=.1]{figs/3shards_fanout100_skew0.5_16client_CDF.png}
 }
 \subfloat[skew\xspace0.7]{
@@ -128,7 +128,7 @@ In each experiment, we scale the number of clients issueing requests to both sys
 We report on both the p99 and p50 for application-request latency. 
 We find p50 a useful metric to look at since our decision to evaluate application-level requests is already end-user facing. 
 
-Our results indicate that p99 has a significant increase in latency over even p95, which we report but do not find representative of the average case latency that users should expect when interacting with \system. This could be due to a number of factors, such as the variability of each system-level request (which we do not focus on improving) and our use of Golang tickers to implement epochs.
+While we report p99, we do not find this metric representative of the average case latency that users should expect when interacting with \system. This could be due to a number of factors, such as the variability of each system-level request (which we do not focus on improving), the single-threaded implementation of our servers, and our use of Golang tickers to implement epochs.
 
 \subsection{Workload}
 We consider uniform and skewed key distributions to explore a more representative range of realistic workloads. For the latter, we generate keys according to a Zipfian distribution with varying skew values $\theta \in \{0.5, 0.7, 0.9, 1.1, 1.3\}$, and use a keyspace of size 1 million. 
@@ -139,14 +139,14 @@ We do not vary the request type at all, all workloads are 100\% writes, since ne
 We do not consider leader failover in this evaluation. Since failures are rare, and unavoidably degrade performance for most protocols, we only consider the normal mode of operation for \system and \mpaxos. Details about the failover specifics in the protocol can be found in ~\ref{sec:design}.
 
 \subsection{Single-Shard}
-In this section, we compare the end-to-end application request latency for \system and \mpaxos configured with a single shard. We consider uniform key distribution and vary the fanout parameter.
+In this section, we compare the end-to-end application request latency for \system and \mpaxos configured with a single shard. We consider uniform key distribution and vary the fanout parameter as $1$, $10$, $100$, and $1000$.
 
-For each fanout value, we select the number of clients that saturates \system, and plot the p99 and p50 latency for both \system and \mpaxos with that number of clients. Note, this selection for number of clients does not always saturate \mpaxos.
+For each fanout value, we find the number of clients that saturates \system, and show the p99 and p50 latencies. We also show the p99 and p50 latencies for \mpaxos for the same number of clients we picked for \system. Note, this selection for number of clients does not always saturate \mpaxos.
 
-Figures ~\ref{fig:1shardp99} and ~\ref{fig:1shardp50} show the throughput latency curves for ranging fanout values of application-level requests. Since our implementation uses an epoch value of 1ms, \system is unable to match \mpaxos until around fanout 10, but outperforms for large fanout values of $100$ and $1000$. \al{By how much?! Be extremely concrete. Outperform could be 1\% or 10x}
+Figures ~\ref{fig:1shardp99} and ~\ref{fig:1shardp50} show the throughput latency curves for ranging fanout values of application-level requests. In the single-shard setting, the expected improvement is most sensitive to our selection of epoch length, as well as the relationship between this value and leader-replica roundtrip latenciy. Idealistically, (1) concurrent requests arrive at the leader as soon as an epoch begins, (2) replicate at a majority in parallel, (3) immediately afterwards the epoch expires, (4) the final ordering roundtrip completes, and (5) the requests are executed. Realistically, requests might arrive halfway through an initial epoch, and therefore remain in the buffered log for an additional trailing epoch. Since our implementation uses an epoch value of 1ms, and the leader-replica latency is around 150$\mu$s, \system is unable to match \mpaxos until around fanout 10. %Moreover our golang implementation of timers...
 
-In the single-shard setting, this improvement is most sensitive to our selection of epoch length, as well as the relationship between this value and leader-replica roundtrip latencies. 
-The coordination overhead on a single shard is much smaller as compared to the multi-shard setting since there is no leader-to-leader communication. We notice a substantial improvement for latencies at fanouts $100$ and $1000$.
+While a protocol that provides \mdl could be optimized for a single-shard setting ~\ref{}, we did not change same multi-sharded protocol for a single shard, therefore we still issue coordination messages for each request which the leader must process. The coordination overhead on a single shard is somewhat smaller as compared to the multi-shard setting since there is no leader-to-leader latency. However, at higher fanouts, the leader is under higher load and must process a large log of buffered requests and each of their coordination messages. We notice a substantial improvement for latencies at fanouts $100$ and $1000$, approaching greater than 50\%. This improvement is attenuated by the processing of coordination overhead for each request.
+
 
 \al{Is there \emph{any} coordination overhead? Again, be more crisp and
 concrete. For example (not sure this is true): Because there is no (or virtually
@@ -206,7 +206,7 @@ Jeff is still looking for these applications at the moment -- it would be good t
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%% 1 shard uniform p99 %%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{comment}
+%\begin{comment}
 \begin{figure*}[!htb]
 \centering
 \subfloat[Fanout\xspace1]{
@@ -332,7 +332,7 @@ Jeff is still looking for these applications at the moment -- it would be good t
 }
 \caption{p50 for 9 shard setting.}
 \end{figure*}
-\end{comment}
+%\end{comment}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
