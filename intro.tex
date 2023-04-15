@@ -43,12 +43,12 @@ Thus programmers can specify and reason about their program as they currently do
 
 %* with the greater power for programmers and the possibility of parallel requests from a single client comes a new responsibility to implement these new constraints in underlying systems
 
-Some designs exist that provide \mdl{} on a single shard~\cite{ongaro_thesis}, but, to the best of our knowledge, there are no existing designs that provide it across shards.
+We find that some existing designs provide \mdl{} for a single shard~\cite{ongaro_thesis}, but, to the best of our knowledge, there are no existing designs that provide it across shards.
 There are three challenges in providing \mdl across shards:
-1) ensuring operations are ordered across shards in the order the client issued them,
-2) ensuring suffix-complete failure semantics,
+(1) ensuring operations are ordered across shards in the order the client issued them,
+(2) ensuring suffix-complete failure semantics,
 and
-3) providing lower latency that sequential single-dispatch Linearizable operations.
+(3) providing lower end-to-end latency than sequential single-dispatch Linearizable operations.
 
 We present \sys{}, the first design for providing cross-shard \mdl{}.
 \sys{}'s design includes two phases: a parallel fault tolerance phase and then a sequential coordination phase.
@@ -58,7 +58,7 @@ This sequential coordination is key to enforcing both the client issue order and
 a client's later operation will only be ordered and thus executed if the preceding operation has been successfully replicated and coordinated.
 
 The two phases require more messages and result in higher latency for an \textit{individual} operation than an individual single-dispatch operation.
-But, they unlock parallelism that quickly leads to lower end-to-end application latency as the number of concurrent operations grows.
+But, they unlock parallelism that yields lower end-to-end application latency as the number of concurrent operations grows.
 ...
 
 % sdl:
@@ -91,5 +91,5 @@ In summary, the contributions of this paper include:
 \item The definition of \mdllong{}.
 \item A proof of external equivalence between an application running on \sdl{} and a transformation of it running on \mdl{}.
 \item The first design for cross-shard \mdl{}: \sys{}.
-\item An implementation and evaluation of \sys{} that shows \true{it halves latency for most application requests compared to a Linearizable baseline.}
+\item An implementation and evaluation of \sys{} that shows \true{approaches half latency for application requests compared to a Linearizable baseline as fanout increases.}
 \end{itemize}
