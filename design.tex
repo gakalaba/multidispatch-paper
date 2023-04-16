@@ -12,17 +12,18 @@
 \SetKwBlock{atomicblk}{atomic}{end}
 
 \SetKwFunction{atomicAdd}{AtomicAdd}
-\SetKwFunction{sortps}{sortByPredecessorSize}
+\SetKwFunction{sortps}{sortByLamportEpoch}
+\SetKwFunction{executeRetClie}{executeAndSubmitOpReply}
 \SetKwFunction{clientSubmit}{Client::SubmitOp}
-\SetKwFunction{clientWait}{Client::WaitOp}
+\SetKwFunction{clientWait}{Client::SubmitOpReplyRecv}
 \SetKwFunction{leaderSubmit}{Leader::SubmitOpRecv}
 \SetKwFunction{replicaCoord}{Replica::coordRequestRecv}
-\SetKwFunction{shardMain}{Leader::shardMain}
-\SetKwFunction{CR}{Leader::CoordinationRequest}
-\SetKwFunction{CRReply}{Leader::CoordinationResponse}
+\SetKwFunction{shardMain}{Leader::ProcessEpoch}
+\SetKwFunction{leaderRecvCR}{Leader::SubmitCRRecv}
+\SetKwFunction{CRReply}{Leader::SubmitCRRespRecv}
 \SetKwFunction{append}{.append}
 \SetKwFunction{find}{.find}
-\SetKwFunction{popO}{.popOrderedAndStale()}
+\SetKwFunction{pop}{.pop}
 
 \algnewcommand{\IfThenElse}[3]{% \IfThenElse{<if>}{<then>}{<else>}
   \algorithmicif\ #1\ \algorithmicthen\ #2\ \algorithmicelse\ #3}
@@ -301,7 +302,7 @@ To provide (B), at the beginning of each new term, a newly elected leader must i
 It is sufficient to add all the entries to the ordered log, sort, and execute them once every buffered request is committed and coordinated, or failed (if the reissued coordination request received a failed reply). Without this expensive epoch completion, it is possible that a new request $r'$ might arrive and become committed and coordinated before a buffered entry that was committed and coordinated at the previous leader $r$ is committed and coordinated with the current leader. Linearizability could be violated if $r'$ must be ordered in the log after $r$ but is added to the ordered log before $r$.
 
 Finally, we mention that coordination requests might also be lost in the network or across leader failures. To solve this, each request has a fixed amount of total epochs for which it can remain uncoordinated. After a leader sees that a request is 'stale', it will fail the request as well as any pending coordination requests from successors of that request, beginning the suffix closed failure set. This solution also handles the garbage collection of the buffered log.
-\begin{comment}
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%% Client %%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -310,25 +311,24 @@ Finally, we mention that coordination requests might also be lost in the network
     \State $\mathcal{L} \gets \{...\}$ \algorithmiccomment{Shard Leaders}\\
     \State $i \gets 0$ \algorithmiccomment{Sequence No Per Shard}\\
     \State $prevReq \gets NULL$\\
-    \State $P \gets 0$
-    \State $m$ \algorithmiccomment{mutex}\\
+    %\State $m$ \algorithmiccomment{mutex}\\
     \Function{\clientSubmit{Op, K, V}}{
-        $seqno := \atomicAdd(i, 1)$\\
+        $seqno := i$\\
+        $i\mathrel{+}=1$\\
         $Req := (Op, K, V, PID, seqno)$\\
-        $m.lock()$ \algorithmiccomment{Critical section begins}\\
+        %$m.lock()$ \algorithmiccomment{Critical section begins}\\
         $prq := prevReq$\\
         $prevReq \gets Req$\\
-        $P++$\\
-        $m.unlock()$ \algorithmiccomment{Critical section begins}\\
-        \IfThen{$prevReq \neq NULL$}{\Send $SubmitCR(prq, Req, P)$ to $L_{K-1} \in \mathcal{L}$}\\
+        %$m.unlock()$ \algorithmiccomment{Critical section begins}\\
+        \IfThen{$prevReq \neq NULL$}{\Send $SubmitCR(prq, Req)$ to $L_{K-1} \in \mathcal{L}$}\\
         \Send $SubmitOp(Req)$ to $L_K \in \mathcal{L}$\\        
     }
 
     \Function{\clientWait{Req}}{
         \Wait receive $SubmitOpReply(V)$ from $L_K \in \mathcal{L}$\\
-        $m.lock()$\\
+        %$m.lock()$\\
         $\IfThen{prevReq = Req}{prevReq \gets NULL}$\\
-        $m.unlock()$\\
+        %$m.unlock()$\\
         \Return $V$\\
     }
     \caption{MD-Lin Client}
@@ -338,55 +338,109 @@ Finally, we mention that coordination requests might also be lost in the network
 %%%%% Shard Leader %%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{algorithm}
-    \State $Epoch \gets 0$\\
+    \State $ShardEpoch \gets 0$\\
     \State $Timer \gets T$\\
     \State $accepting \gets True$\\
-    \State $commitLog \gets []$\\
+    \State $bufferedLog \gets []$\\
     \State $orderedLog \gets []$\\
     \State $ClientSeqnoMap \gets [][]$\\
     \Function{\shardMain{}}{
         \Wait until $Timer = 0$\\
         $accepting \gets False$\\
         $batch := []$\\
-        \For{$entry \in commitLog$\\}{
+        \For{$entry \in bufferedLog$\\}{
+            $entry.epochsSeen\mathrel{+}=1$\\
             \If{$entry.committed \land entry.coordinated$\\}{
-                $entry.epoch \gets Epoch$\\
+                %$entry.epoch \gets ShardEpoch$\\
                 $batch\append{entry}$\\
+                $ShardEpoch = Math.max(ShardEpoch, entry.epoch)$\\
+                $bufferedLog\pop(entry)$\\
+            }
+            \ElseIf{$entry.epochsSeen > MAX\_EPOCHS$}{
+                $bufferedLog\pop(entry)$\\
+                $SubmitCRResp(entry, False)$ to $L_{K+1} \in \mathcal{L}$\\
             }
         }
         \sortps{batch}\\
         $orderedLog\append{batch}$\\
-        \Send $AppendEntries(batch, Epoch)$ to all $r \in \mathcal{R}$\\
-        \Wait receive $AppendEntriesSuccess$ from all $r \in Q \in \mathcal{R}$\\
-        $commitLog\popO{}$\\
-        $\atomicAdd(Epoch, 1)$\\
+        $ShardEpoch \mathrel{+}=1$\\
+        \Send $FinalAppendEntries(batch)$ to all $r \in \mathcal{R}$\\
+        %\Wait receive $AppendEntriesSuccess$ from all $r \in Q \in \mathcal{R}$\\
+        %$bufferedLog\popO{}$\\
+        $\executeRetClie{batch}$\\
+        %$\atomicAdd(ShardEpoch, 1)$\\
         $accepting \gets True$\\
-        $Timer \gets T$
+        $Timer \gets T$\\
     }
-    
+    \caption{MD-Lin Shard Leader Epoch Handling}
+    \label{shardprotocolmain}
+\end{algorithm}
+\begin{algorithm}
     \Function{\leaderSubmit{Op, K, V, P, s}}{
         \If{$ClientSeqnoMap[P] \neq s$}{
             $buffer_{P}(\{Op, K, V, P, s, bd\})$\\
+            \algorithmiccomment{Buffer per-client out of order requests}\\
             \Return\\
         }
         \Wait until $accepting = True$\\
-        \For{$entry \in buffer_{P}$}{
-            $commitLog\append{entry}$\\
-            $ClientSeqnoMap[P]++$\\
-            \Send $AppendEntries(entry)$ to all $r \in \mathcal{R}$\\
+        $sentEntries := []$\\
+        \algorithmiccomment{Issue this op}\\
+        $bufferedLog\append{(Op, K, V, P, s)}$\\
+        $ClientSeqnoMap[P]\mathrel{+}=1$\\
+        \Send $AppendEntries(Op, K, V, P, s)$ to all $r \in \mathcal{R}$\\
+        $sentEntries\append{(Op, K, V, P, s)}$\\
+        \For{$(Op, K, V, P, s) \in buffer_{P}$}{
+        \algorithmiccomment{Issue OoO buffered ops that are now ready}\\
+            \If{$ClientSeqnoMap[P] = s$}{
+                $bufferedLog\append{(Op, K, V, P, s)}$\\
+                $ClientSeqnoMap[P]\mathrel{+}=1$\\
+                \Send $AppendEntries(Op, K, V, P, s)$ to all $r \in \mathcal{R}$\\
+                $sentEntries\append{(Op, K, V, P, s)}$\\
+            }
         }
-        \Wait receive $AppendEntriesSuccess$ from all $r \in Q \in \mathcal{R}$ for all $entry \in buffer_{P}$\\
-        $entry.committed \gets True$ for all $entry \in buffer_{P}$ that received $Success$\\
-    }
-    \Function{\CR{prq, rq}}{
-        \If{$orderedLog\find{prq} \neq NULL$}{
-            \Return asdkfsdf\\
+        \For{$entry \in sentEntries$}{
+            \Wait receive $AppendEntriesSuccess$ from all $r \in Q \in \mathcal{R}$\\
+            $entry.committed \gets True$\\
+            \If{$entry.committed \land entry.coordinated$\\}{
+                $SubmitCRResp(entry, True, entry.epoch+1)$ to $L_{K+1} \in \mathcal{L}$\\
+            }
         }
     }
-    \Function{\CRReply{rq, v}}{
+    \caption{MD-Lin Shard Leader Communication}
+    \label{shardprotocolmessages}
+\end{algorithm}
+\begin{algorithm}
+    \Function{\leaderRecvCR{rq, succrq}}{
+    \algorithmiccomment{Received CR from client of succrq}\\
+        $rq.succrq := succrq$\\
+        \If{$entry := orderedLog\find{rq} \neq NULL$}{
+            $SubmitCRResp(succrq, True, entry.epoch+1)$ to $L_{K+1} \in \mathcal{L}$\\
+            \Return\\
+        }
+        \Wait $entry := bufferedLog\find{rq} \neq NULL$\\
+        \Wait $(entry.committed \land entry.coordinated) \lor bufferedLog\find{rq} = NULL$\\
+        \If{$entry.committed \land entry.coordinated$}{
+            $SubmitCRResp(succrq, True, entry.epoch+1)$ to $L_{K+1} \in \mathcal{L}$\\
+        }
+        \Else{
+            $SubmitCRResp(succrq, False, -1)$ to $L_{K+1} \in \mathcal{L}$\\
+        }        
+    }
+    \Function{\CRReply{rq, v, ep}}{
+        
+        \If{$v = True$}{
+            \Wait $entry := bufferedLog\find{rq} \neq NULL$\\
+            $entry.committed \gets True$\\
+            $entry.epoch \gets max(ShardEpoch, ep)$\\
+            $SubmitCRResp(entry.succrq, True, entry.epoch+1)$ to $L_{K+1} \in \mathcal{L}$\\
+        }
+        \Else{
+            $bufferedLog\pop(rq)$\\
+            $SubmitCRResp(rq.succrq, False, -1)$ to $L_{K+1} \in \mathcal{L}$\\
+        }
     
     }
-    \caption{MD-Lin Shard Leader}
-    \label{shardprotocol}
+    \caption{MD-Lin Shard Leader Coordination}
+    \label{shardprotocolcoord}
 \end{algorithm}
-\end{comment}
+
