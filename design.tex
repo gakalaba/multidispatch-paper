@@ -511,181 +511,160 @@ Thus, while the latency of an individual operation is higher in \sys{}, an appli
 
 \subsection{Shard Leader Failover}
 \label{subsec:leaderfailures}
-
 Each shard is made fault tolerant to $f$ failures with $2f+1$ replicas running Multi-Paxos~\cite{paxos}.
 When a shard leader fails (or appears to fail), we call it the \textit{old leader}, and it is replaced by a \textit{new leader}.
-Before processing any new operations the new leader runs a special recovery protocol that allows us to safely (re)coordinate committed operations that have not been ordered.
+Before processing any new operations the new leader runs a recovery protocol that allows us to safely (re)coordinate committed operations that have not been ordered.
 This is what enables \sys{} to safely avoid replication being on-path between coordination responses, which keeps latency lower.
 
-The special recovery protocol first has the new leader ensure it has a complete, up-to-date ordered log as in typical Multi-Paxos:
+The recovery protocol first has the new leader ensure it has a complete, up-to-date ordered log as in typical Multi-Paxos:
 it sends a request to the other replicas for entries in their ordered log,
 once it has a quorum of replies it updates its ordered log to include any entries that other replicas have marked as accepted,
 and then it finishes the protocol for those entries by sending accept messages to the replicas with them.\footnote{We elide details related to ballot numbers due to space constraints and because they are the same as in Multi-Paxos.}
-This ensures that any ordered log entry the old leader could have executed and externalized will be in the new leader's ordered log.
+This ensures that any ordered log entry the old leader could have executed and externalized will be in the new leader's ordered log:
 An operation can only be executed after it is committed to the ordered log,
 which only happens after it is accepted by a majority of replicas,
 which ensures it will be seen and added to the ordered log of the new leader.
 
-Next, the special recovery protocol identifies operations that have been coordinated but not yet ordered.
-Any ongoing operation is in one of the following intermediate states:
-(1) arrived in the buffered map,
-(2) been committed,
-(3) received a coordination response from its predecessor,
-(4) been added to the execution log,
-(5) coordinated its successor request,
-(6) been committed in the execution log in this term,
-(7) been executed, or
-(8) responded to the client.
-Operations in state 1 on the old leader are equivalent to the network dropping the pack to the old leader and will be retried by the client.
-Operations in states 6--8 on the old leader will be added to the ordered log of the new leader as discussed above.
-This leaves operations in states 2--5 to be recovery correctly.
-The new leader can identify these operations by finding all committed operations that are not in its ordered log.
+Ongoing operations can be in one of the four states: pending, committed, coordinated, or ordered.
+Operations that are pending are equivalent to the network dropping the packet to the old leader and will be retried by the client.
+Operations that are ordered already will be added to the ordered log of the new leader as discussed above.
+This leaves operations that are committed and potentially coordinated.
+We do not replicate the coordination status of an operation to minimize the number of messages that are sequential for concurrent client requests.
+Thus, we need to assume that any committed operation could have been coordinated.
 
-The new leader next recovers all these committed-but-not-ordered operations.
-These operations could have coordinated their successor requests, which bring two requirements.
+This bring two requirements for recovering committed-but-not-ordered operations.
 First, we must ensure they are executed to ensure suffix-complete failures.
 %
 Second, we must ensure all committed-but-not-ordered operations are ordered consistently with any potential previous ordering.
+The first requirement is trivially satisfied by executing the operations in any order.
+The second requirement is more complex and requires that we avoid introducing any cycles when considering shard ordering and client issue orderings.
+
+To ensure a compatible ordering with other shards the new leader issues coordination requests to the predecessors of all operations in the committed-but-not-ordered set.
+These coordination requests serve their typical purpose and also return the predecessor\_ts.
+During recovery only the predecessor\_ts is used to determine the ts of an operation.
+Once all operations in the committed-but-not-ordered set are coordinated they are sorted based on their ts, added to the ordered log in that order, and then replicated.
+Once all operations in that set have been successfully replicated and thus moved to the ordered status the new leader starts processing new operations.
+
+This protocol avoids introducing any cycles in a way similar to the normal coordinate messages by ensuring their order is compatible with any other ordering on another shard.
+Consider two operations $o_m$ and $o_n$ on this shard where there is a path in the graph of constraints between from $o_m$ to $o_n$.
+The recovery protocol ensures that $o_m$'s ts on the new leader, $\textit{ts}_\textit{m.new}$ is $\le$ its ts on the old leader, $\textit{ts}_\textit{m.old}$, because it is only based on the predecessor\_ts instead of the max of predecessor\_ts and shard\_ts.
+Further, if there is a path in the graph of constraints it can only go through coordinated operations that each ensure their ts is larger than both their predecessors and earlier operations on the same shard.
+Thus, the recovery protocol also ensures that $o_n$'s ts on the new leader, $\textit{ts}_\textit{n.new}$, is $>$ it's predecessor's ts, which by the transitive application of the timestamping rules is greater than $\textit{ts}_\textit{m.old}$.
+Together, this ensures that  $\textit{ts}_\textit{m.new}$ $\le$ $\textit{ts}_\textit{m.old}$ $<$ $\ldots$ $<$ $\textit{ts}_\textit{m.old}$ and thus the recovery protocol will compatibly order $o_m$ before $o_n$ when it sorts them based on the ts.
+
+\wl{Should we have a footnote that says ``Reasoning is similar, but significantly more complex, for cases where multiple shard leaders fail which we omit due to space constraints.''?}
+
+
+%% special recovery can only change the shard ordering...
+%% if there is a shard-ordering/issue-ordering path between A and B, then special recovery is guaranteed to order A before B:
+%% if A and B were issued by the same client, then their sequence numbers cover this
+%% if A and B were issued by different clients, then
+
+%% A to A' shard ordered before B' to B
+
+%% The ts of B will be based on the ts of B', which will have to be later than the ts of A'
+%% A original ts is W
+%% A' original ts is X > W (by ts\_new formula line)
+%% B' original ts is Y > X (by ts\_new forumla)
+%% B original ts is Z > Y > X > W
+
+%% B new ts is J > Y > X > W
+%% A new ts is K <= W (because it's picked to be based only on pred\_received\_ts and before it was a max that include that)
+%% thus K <= W < X < Y < J ... K < J ... K will be executed first
+
+%% (Also possible that multiple leader fail at the same time. That is also fine because the above reasoning precludes there being any inconsistent ordering with shard leaders that haven't failed. And for shard leaders that have failed, things will simply be executed in SOME pred\_received\_ts based order, which will only respect
+
+
+
+
+%% Next, the recovery protocol identifies operations that have been committed-but-not-ordered.
+%% Any ongoing operation is in one of the follwing intermediate states:
+%% (1) arrived in the buffered map,
+%% (2) committed,
+%% (3) received a coordination response from its predecessor,
+%% (4) been added to the execution log,
+%% (5) coordinated its successor request,
+%% (6) been committed in the execution log in this term,
+%% (7) been executed, or
+%% (8) responded to the client.
+%% Operations in state 1 on the old leader are equivalent to the network dropping the pack to the old leader and will be retried by the client.
+%% Operations in states 6--8 on the old leader will be added to the ordered log of the new leader as discussed above.
+%% This leaves operations in states 2--5 to be recovery correctly.
+%% The new leader can identify these operations by finding all committed operations that are not in its ordered log.
+
 %
 
 
-consider 4 operations:
-clA: a1 b2
-clB: b3 a4
+%% consider 4 operations:
+%% clA: a1 b2
+%% clB: b3 a4
 
 
-a1 a4 and b2 b3 is good: a1, b2, b3, a4
-a1 a4 and b3 b2 is good: a1, b3, b2, a4
-a4 a1 and b3 b2 is good: b3, a4, a1, b2
-a4 a1 and b2 b3 is bad: cycle from a4-a1-b2-b3-a4 so no total order
+%% a1 a4 and b2 b3 is good: a1, b2, b3, a4
+%% a1 a4 and b3 b2 is good: a1, b3, b2, a4
+%% a4 a1 and b3 b2 is good: b3, a4, a1, b2
+%% a4 a1 and b2 b3 is bad: cycle from a4-a1-b2-b3-a4 so no total order
 
-if a1 issue order before b2 AND b2 shard order before b3 THEN
+%% if a1 issue order before b2 AND b2 shard order before b3 THEN
 
 
 
-if there is an issue-order-union-shard-order path from op1 to op2 on shard X, then X will always order op1 before op2
-issue order from the same client (trivial)
-shard order from this shard (trivial)
-goes off the shard:
 
-in the normal case, coordination messages ensure this:
-they gate the coordination and thus execution of an op on its previous operation
-thus the a4 will wait on its previous op, which will be coordinated after the op that is coordinated after a1
 
-in the failover case, the recovery protocol ensures this:
-each committed-but-not-ordered op gets a ordering ts based only on its previous operation ...
-then things are sorted and coordinated/executed in that order.
-a4's ts > b3's ts > b2's ts > a1's ts and thus a1/a4 will be safely ordered...
+%% \wl{WL pass through here}
 
 
 
 
+%% These 
 
 
 
+%% The interesting case to look at is a failure right after point (5). Any request $r$ that has already coordinated a successor request \textit{must} (A) be in the future logs of all leaders, to provide failure semantics, and (B) be placed in the correct order in the log post-failure, to guarantee invocation ordering. These guarantees are less important for requests that have not coordinated a successor since those requests have no impact on successors that might externalize this state, and clients can simply reissue these requests if they fail/are lost.
 
-if op1 is shard-ordered before op2 on shard x, then
+%% \wl{Drop the whole sentence what says ``these guarantees are less...'', we don't know which ones those are so we have to safely handle all of these}
 
+%% To guarantee (A), after an election completes, any new leader must ask for the buffered logs of at least a quorum of replicas to ensure it has every request that might have successfully coordinated a successor requests. We do not replicate the coordination bit on non-leader nodes, since this would diminish our opportunity to parallelize coordinating an entry and making it fault tolerant. By extension, knowledge of which requests have coordinated their successors only exists at the leader, this information is also not replicated. Because of this, there is no way for a new leader to know which buffered entries are coordinated themselves or have coordinated successor requests, so it performs this log diff. This technique is similar to View-Stamped Replication's ~\ref{} \texttt{DoViewChange} messages sent from replicas to leaders during a view change. 
 
+%% Crucially, if this step is omitted, a leader might be elected that is missing an entry that coordinated a successor request. For example, consider a network partition which creates two subclusters, each of which contains a node operating as a leader (one in a later term than the other). The subcluster that contains a quorum could receive a request and in the future coordinate its successor at another shard after it itself has been committed and coordinated. Consider when the leader of this subcluster fails to deliver the commit messages to replicas to order this entry at this log index, and immediately afterwards the partition is removed. At this point, no replica that might become a leader is aware of the fact this entry has coordinated its successor, or even that it has moved from the buffered map and to the ordered log. There is no available information among the replicas to reconstruct this information, so we must pessimistically assume all buffered entries at a quorum of nodes have coordinated their successors and include them in the buffered log of the newly elected leader.
 
+%% To provide (B), at the beginning of each new term, a newly elected leader must immediately process all buffered entries and place them in the ordered log before accepting any future client requests (or fail them if their predecessors failed). This is an expensive task during which the new leader must reissue each buffered request's coordination message (that the client sent initially) to the predecessor shard and wait for a response. In parallel, the new leader must also replicate each buffered request at a new quorum of nodes to ensure the entry exists on a quorum of replicas across multiple leader failures (the buffered log is not persisted).
 
-Need the new ordering to be compatible with mdl: legal total order.
-This is directly true on this shard, because we're executing things only after they are ordered.
-These pending ops could not have been executed so we can reorder them in any way we want locally.
-BUT we need this ordering to be compatible with the ordering we've sent to successors already...
+%% \wl{make it clear, we are failing *operations* if the predecessor *operation* failed.}
 
-This is true because we maintain INVARIANT X, which hopefully we can discuss in the main part of the design section
+%% As the new buffered entries at the new leader become committed and coordinated, we do not immediately add them to the ordered log. Moreover, we do not update the global shard timestamp between each commit/coordination event. Finally, once the last buffered entry is committed and coordinated, we enter all entries in sorted timestamp order to the ordered log (or fail them if their predecessor failed). Without this expensive buffer flushing, it is possible that a new request $r'$ might arrive and become committed and coordinated before a buffered entry $r$ that was committed and coordinated at the previous leader is committed and coordinated with the current leader. Linearizability could be violated if $r'$ must be ordered in the log after $r$ but is placed in the ordered log before $r$. The lamport timestamps guarantee a safe total ordering that respect any causal relationships. While we might reorder operations that are not causally related, this is safe and does not violate \mdl. 
 
-If opA happensbefore opB
-either because it is issue-ordered before it ...
-OR
-because opA is ordered before opB on the same data ...
+%% Finally, we mention that coordination requests might also be lost in the network or across leader failures. To solve this, each request has a fixed amount of total epochs for which it can remain uncoordinated. After a leader sees that a request is "stale", it will fail the request as well as any pending coordination requests from successors of that request, beginning the suffix closed failure set. This solution also handles the garbage collection of the buffered log.
 
 
-issue ordering requests
-and
-shard orderings
 
 
-if there is a shard-ordering/issue-ordering path between ops A and B then:
-either A and B were issued by the same process and B will be coordinated after A
 
 
-special recovery can only change the shard ordering...
-if there is a shard-ordering/issue-ordering path between A and B, then special recovery is guaranteed to order A before B:
-if A and B were issued by the same client, then their sequence numbers cover this
-if A and B were issued by different clients, then
 
-A to A' shard ordered before B' to B
+%% To begin, we employ a similar voting mechanism as Raft for selecting the leader from the candidate from the highest term that has the most up-to-date log, where in this case the log is the ordered log of requests that were sorted and executed in prior epochs. This ensures that all committed and executed (and possibly client-externalized) requests are in all future leader logs. Next we describe how buffered requests are safely carried across successive terms with different leaders.
 
-The ts of B will be based on the ts of B', which will have to be later than the ts of A'
-A original ts is W
-A' original ts is X > W (by ts\_new formula line)
-B' original ts is Y > X (by ts\_new forumla)
-B original ts is Z > Y > X > W
+%% \wl{need to update, ``all committ/executed requests will be in all future leader logs'' is incorrect. Because we don't use the consistency check from RAFT, you can have a 3-replica system where you have a L and R1 and R2. L tells R1 about committed and executed op1 and it tells R2 about committed and executed op2. Neither R1 nor R2 have all committed requests}
 
-B new ts is J > Y > X > W
-A new ts is K <= W (because it's picked to be based only on pred\_received\_ts and before it was a max that include that)
-thus K <= W < X < Y < J ... K < J ... K will be executed first
+%% During operation of \protocol, requests can exist in multiple intermediate states. Specifically, a failure could occur after a request has (1) arrived in the buffered map, (2) been committed, (3) received a coordination response from its predecessor, (4) been added to the execution log (5) coordinated its successor request, (6) been committed in the execution log in this term, (7) been executed, or (8) responded to the client. 
 
-(Also possible that multiple leader fail at the same time. That is also fine because the above reasoning precludes there being any inconsistent ordering with shard leaders that haven't failed. And for shard leaders that have failed, things will simply be executed in SOME pred\_received\_ts based order, which will only respect
+%% \wl{failure between 1 and 2 is like the client's request packet being dropped, failure after 6 is safe because the new leader will reexecute the operation, but get the same result (by the definition of RSMs), and the client will get a redundant response it will drop. this leave failure after 2 and before 6, which all look the same and thus need to be handled the same. What is necessary for operations in this in-between period is ...}
 
+%% The interesting case to look at is a failure right after point (5). Any request $r$ that has already coordinated a successor request \textit{must} (A) be in the future logs of all leaders, to provide failure semantics, and (B) be placed in the correct order in the log post-failure, to guarantee invocation ordering. These guarantees are less important for requests that have not coordinated a successor since those requests have no impact on successors that might externalize this state, and clients can simply reissue these requests if they fail/are lost.
 
+%% \wl{Drop the whole sentence what says ``these guarantees are less...'', we don't know which ones those are so we have to safely handle all of these}
 
-\wl{WL pass through here}
+%% To guarantee (A), after an election completes, any new leader must ask for the buffered logs of at least a quorum of replicas to ensure it has every request that might have successfully coordinated a successor requests. We do not replicate the coordination bit on non-leader nodes, since this would diminish our opportunity to parallelize coordinating an entry and making it fault tolerant. By extension, knowledge of which requests have coordinated their successors only exists at the leader, this information is also not replicated. Because of this, there is no way for a new leader to know which buffered entries are coordinated themselves or have coordinated successor requests, so it performs this log diff. This technique is similar to View-Stamped Replication's ~\ref{} \texttt{DoViewChange} messages sent from replicas to leaders during a view change. 
 
+%% Crucially, if this step is omitted, a leader might be elected that is missing an entry that coordinated a successor request. For example, consider a network partition which creates two subclusters, each of which contains a node operating as a leader (one in a later term than the other). The subcluster that contains a quorum could receive a request and in the future coordinate its successor at another shard after it itself has been committed and coordinated. Consider when the leader of this subcluster fails to deliver the commit messages to replicas to order this entry at this log index, and immediately afterwards the partition is removed. At this point, no replica that might become a leader is aware of the fact this entry has coordinated its successor, or even that it has moved from the buffered map and to the ordered log. There is no available information among the replicas to reconstruct this information, so we must pessimistically assume all buffered entries at a quorum of nodes have coordinated their successors and include them in the buffered log of the newly elected leader.
 
+%% To provide (B), at the beginning of each new term, a newly elected leader must immediately process all buffered entries and place them in the ordered log before accepting any future client requests (or fail them if their predecessors failed). This is an expensive task during which the new leader must reissue each buffered request's coordination message (that the client sent initially) to the predecessor shard and wait for a response. In parallel, the new leader must also replicate each buffered request at a new quorum of nodes to ensure the entry exists on a quorum of replicas across multiple leader failures (the buffered log is not persisted).
 
+%% \wl{make it clear, we are failing *operations* if the predecessor *operation* failed.}
 
-These 
+%% As the new buffered entries at the new leader become committed and coordinated, we do not immediately add them to the ordered log. Moreover, we do not update the global shard timestamp between each commit/coordination event. Finally, once the last buffered entry is committed and coordinated, we enter all entries in sorted timestamp order to the ordered log (or fail them if their predecessor failed). Without this expensive buffer flushing, it is possible that a new request $r'$ might arrive and become committed and coordinated before a buffered entry $r$ that was committed and coordinated at the previous leader is committed and coordinated with the current leader. Linearizability could be violated if $r'$ must be ordered in the log after $r$ but is placed in the ordered log before $r$. The lamport timestamps guarantee a safe total ordering that respect any causal relationships. While we might reorder operations that are not causally related, this is safe and does not violate \mdl. 
 
-
-
-The interesting case to look at is a failure right after point (5). Any request $r$ that has already coordinated a successor request \textit{must} (A) be in the future logs of all leaders, to provide failure semantics, and (B) be placed in the correct order in the log post-failure, to guarantee invocation ordering. These guarantees are less important for requests that have not coordinated a successor since those requests have no impact on successors that might externalize this state, and clients can simply reissue these requests if they fail/are lost.
-
-\wl{Drop the whole sentence what says ``these guarantees are less...'', we don't know which ones those are so we have to safely handle all of these}
-
-To guarantee (A), after an election completes, any new leader must ask for the buffered logs of at least a quorum of replicas to ensure it has every request that might have successfully coordinated a successor requests. We do not replicate the coordination bit on non-leader nodes, since this would diminish our opportunity to parallelize coordinating an entry and making it fault tolerant. By extension, knowledge of which requests have coordinated their successors only exists at the leader, this information is also not replicated. Because of this, there is no way for a new leader to know which buffered entries are coordinated themselves or have coordinated successor requests, so it performs this log diff. This technique is similar to View-Stamped Replication's ~\ref{} \texttt{DoViewChange} messages sent from replicas to leaders during a view change. 
-
-Crucially, if this step is omitted, a leader might be elected that is missing an entry that coordinated a successor request. For example, consider a network partition which creates two subclusters, each of which contains a node operating as a leader (one in a later term than the other). The subcluster that contains a quorum could receive a request and in the future coordinate its successor at another shard after it itself has been committed and coordinated. Consider when the leader of this subcluster fails to deliver the commit messages to replicas to order this entry at this log index, and immediately afterwards the partition is removed. At this point, no replica that might become a leader is aware of the fact this entry has coordinated its successor, or even that it has moved from the buffered map and to the ordered log. There is no available information among the replicas to reconstruct this information, so we must pessimistically assume all buffered entries at a quorum of nodes have coordinated their successors and include them in the buffered log of the newly elected leader.
-
-To provide (B), at the beginning of each new term, a newly elected leader must immediately process all buffered entries and place them in the ordered log before accepting any future client requests (or fail them if their predecessors failed). This is an expensive task during which the new leader must reissue each buffered request's coordination message (that the client sent initially) to the predecessor shard and wait for a response. In parallel, the new leader must also replicate each buffered request at a new quorum of nodes to ensure the entry exists on a quorum of replicas across multiple leader failures (the buffered log is not persisted).
-
-\wl{make it clear, we are failing *operations* if the predecessor *operation* failed.}
-
-As the new buffered entries at the new leader become committed and coordinated, we do not immediately add them to the ordered log. Moreover, we do not update the global shard timestamp between each commit/coordination event. Finally, once the last buffered entry is committed and coordinated, we enter all entries in sorted timestamp order to the ordered log (or fail them if their predecessor failed). Without this expensive buffer flushing, it is possible that a new request $r'$ might arrive and become committed and coordinated before a buffered entry $r$ that was committed and coordinated at the previous leader is committed and coordinated with the current leader. Linearizability could be violated if $r'$ must be ordered in the log after $r$ but is placed in the ordered log before $r$. The lamport timestamps guarantee a safe total ordering that respect any causal relationships. While we might reorder operations that are not causally related, this is safe and does not violate \mdl. 
-
-Finally, we mention that coordination requests might also be lost in the network or across leader failures. To solve this, each request has a fixed amount of total epochs for which it can remain uncoordinated. After a leader sees that a request is "stale", it will fail the request as well as any pending coordination requests from successors of that request, beginning the suffix closed failure set. This solution also handles the garbage collection of the buffered log.
-
-
-
-
-
-
-
-To begin, we employ a similar voting mechanism as Raft for selecting the leader from the candidate from the highest term that has the most up-to-date log, where in this case the log is the ordered log of requests that were sorted and executed in prior epochs. This ensures that all committed and executed (and possibly client-externalized) requests are in all future leader logs. Next we describe how buffered requests are safely carried across successive terms with different leaders.
-
-\wl{need to update, ``all committ/executed requests will be in all future leader logs'' is incorrect. Because we don't use the consistency check from RAFT, you can have a 3-replica system where you have a L and R1 and R2. L tells R1 about committed and executed op1 and it tells R2 about committed and executed op2. Neither R1 nor R2 have all committed requests}
-
-During operation of \protocol, requests can exist in multiple intermediate states. Specifically, a failure could occur after a request has (1) arrived in the buffered map, (2) been committed, (3) received a coordination response from its predecessor, (4) been added to the execution log (5) coordinated its successor request, (6) been committed in the execution log in this term, (7) been executed, or (8) responded to the client. 
-
-\wl{failure between 1 and 2 is like the client's request packet being dropped, failure after 6 is safe because the new leader will reexecute the operation, but get the same result (by the definition of RSMs), and the client will get a redundant response it will drop. this leave failure after 2 and before 6, which all look the same and thus need to be handled the same. What is necessary for operations in this in-between period is ...}
-
-The interesting case to look at is a failure right after point (5). Any request $r$ that has already coordinated a successor request \textit{must} (A) be in the future logs of all leaders, to provide failure semantics, and (B) be placed in the correct order in the log post-failure, to guarantee invocation ordering. These guarantees are less important for requests that have not coordinated a successor since those requests have no impact on successors that might externalize this state, and clients can simply reissue these requests if they fail/are lost.
-
-\wl{Drop the whole sentence what says ``these guarantees are less...'', we don't know which ones those are so we have to safely handle all of these}
-
-To guarantee (A), after an election completes, any new leader must ask for the buffered logs of at least a quorum of replicas to ensure it has every request that might have successfully coordinated a successor requests. We do not replicate the coordination bit on non-leader nodes, since this would diminish our opportunity to parallelize coordinating an entry and making it fault tolerant. By extension, knowledge of which requests have coordinated their successors only exists at the leader, this information is also not replicated. Because of this, there is no way for a new leader to know which buffered entries are coordinated themselves or have coordinated successor requests, so it performs this log diff. This technique is similar to View-Stamped Replication's ~\ref{} \texttt{DoViewChange} messages sent from replicas to leaders during a view change. 
-
-Crucially, if this step is omitted, a leader might be elected that is missing an entry that coordinated a successor request. For example, consider a network partition which creates two subclusters, each of which contains a node operating as a leader (one in a later term than the other). The subcluster that contains a quorum could receive a request and in the future coordinate its successor at another shard after it itself has been committed and coordinated. Consider when the leader of this subcluster fails to deliver the commit messages to replicas to order this entry at this log index, and immediately afterwards the partition is removed. At this point, no replica that might become a leader is aware of the fact this entry has coordinated its successor, or even that it has moved from the buffered map and to the ordered log. There is no available information among the replicas to reconstruct this information, so we must pessimistically assume all buffered entries at a quorum of nodes have coordinated their successors and include them in the buffered log of the newly elected leader.
-
-To provide (B), at the beginning of each new term, a newly elected leader must immediately process all buffered entries and place them in the ordered log before accepting any future client requests (or fail them if their predecessors failed). This is an expensive task during which the new leader must reissue each buffered request's coordination message (that the client sent initially) to the predecessor shard and wait for a response. In parallel, the new leader must also replicate each buffered request at a new quorum of nodes to ensure the entry exists on a quorum of replicas across multiple leader failures (the buffered log is not persisted).
-
-\wl{make it clear, we are failing *operations* if the predecessor *operation* failed.}
-
-As the new buffered entries at the new leader become committed and coordinated, we do not immediately add them to the ordered log. Moreover, we do not update the global shard timestamp between each commit/coordination event. Finally, once the last buffered entry is committed and coordinated, we enter all entries in sorted timestamp order to the ordered log (or fail them if their predecessor failed). Without this expensive buffer flushing, it is possible that a new request $r'$ might arrive and become committed and coordinated before a buffered entry $r$ that was committed and coordinated at the previous leader is committed and coordinated with the current leader. Linearizability could be violated if $r'$ must be ordered in the log after $r$ but is placed in the ordered log before $r$. The lamport timestamps guarantee a safe total ordering that respect any causal relationships. While we might reorder operations that are not causally related, this is safe and does not violate \mdl. 
-
-Finally, we mention that coordination requests might also be lost in the network or across leader failures. To solve this, each request has a fixed amount of total epochs for which it can remain uncoordinated. After a leader sees that a request is "stale", it will fail the request as well as any pending coordination requests from successors of that request, beginning the suffix closed failure set. This solution also handles the garbage collection of the buffered log.
+%% Finally, we mention that coordination requests might also be lost in the network or across leader failures. To solve this, each request has a fixed amount of total epochs for which it can remain uncoordinated. After a leader sees that a request is "stale", it will fail the request as well as any pending coordination requests from successors of that request, beginning the suffix closed failure set. This solution also handles the garbage collection of the buffered log.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%% Client %%%%%%%%%%%%%%%%
