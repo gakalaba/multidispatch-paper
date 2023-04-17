@@ -51,6 +51,7 @@
 \centering
 \subfloat[skew\xspace0.]{
   \includegraphics[scale=.1]{figs/3shards_fanout100_skew0.5_16client_CDF.png}
+  \label{fig:3shardsskew}
 }
 \subfloat[skew\xspace0.7]{
   \includegraphics[scale=.1]{figs/3shards_fanout100_skew0.7_16client_CDF.png}
@@ -63,6 +64,7 @@
 }
 \subfloat[skew\xspace1.3]{
   \includegraphics[scale=.1]{figs/3shards_fanout100_skew1.3_16client_CDF.png}
+  \label{fig:3shardsskewlast}
 }
 \caption{3 shard skew.}
 \end{figure*}
@@ -75,6 +77,7 @@
 \centering
 \subfloat[skew\xspace0.5]{
   \includegraphics[scale=.1]{figs/9shards_fanout100_skew0.5_16client_CDF.png}
+  \label{fig:9shardsskew}
 }
 \subfloat[skew\xspace0.7]{
   \includegraphics[scale=.1]{figs/9shards_fanout100_skew0.7_16client_CDF.png}
@@ -87,6 +90,7 @@
 }
 \subfloat[skew\xspace1.3]{
   \includegraphics[scale=.1]{figs/9shards_fanout100_skew1.3_16client_CDF.png}
+  \label{fig:9shardsskewlast}
 }
 \caption{9 shard skew.}
 \end{figure*}
@@ -97,38 +101,32 @@
 %TODO
 This section describes how we evaluate \system's performance handling requests from multi-dispatch clients compared to \mpaxos's performance handling requests from single-dispatch clients. 
 Our focus is on measuring latency and throughput of application-level requests, since we aim to improve end-to-end latency for applications.
-We also look at how \system scales from single-shard to multi-shard configurations, and how sensitive performance is to skewed workloads.
-We show that our approach achieves improves end-to-end latency for application level-requests, and scales with the number of subrequests (fanout) issued per application request. 
+We also look at how \system scales from single-shard to multi-shard configurations, and how sensitive performance is to skewed workloads. We report on both the p99 and p50 for application-request latency. 
+We find p50 a useful metric to look at since our decision to evaluate application-level requests is already end-user facing.
+We show that our approach reduces end-to-end latency for application level-requests by up to 75\% and scales with the number of shards. 
 
 \subsection{Experimental Set-up}
 All experiments are conducted on Cloudlab's Utah platform ~\ref{}, using m510 machines. 
 Our experimental setup consists of a 9-node cluster and 2 client machines. 
 Each machine has 1 Intel Xeon-D processor with 8 physical cores running at 2 GHz with hyperthreading enabled, 64 GB of DDR4-2133 RAM, and a 10 Gb/s NIC. 
-The roundtrip latency between all machines is around 150 $\mu$s, thus intershard, intrashard, and client-leader latencies are all equal. 
+Shard leader - shard leader, shard leader - shard replica, and client - shard leader latencies are all equal, with roundtrip latency around 150 $\mu$s,. 
 Each shard contains 3 replicas, all placed on different physical machines. For multi-sharded experiments we place shard leaders on different physical machines as well. 
-We set the epoch length for \system to 1 ms.alev
 
-\al{combine experimental set-up and client design. get rid of metrics, workload,
-failures and replace with, approximately, one sentence each in the experimental
-setup or eval intro}
+
+% \al{combine experimental set-up and client design. get rid of metrics, workload,
+% failures and replace with, approximately, one sentence each in the experimental
+% setup or eval intro}
 
 \subsection{Client Design}
-We evenly distribute client processes across the 2 client machines. Client processes submit application-level requests. Each application-level request submits $n$ system-level subrequests, where $n$ is equal to the fanout parameter for a given experiment. For single-dispatch clients interacting with \mpaxos, only a single system-level subrequest is in-flight at a time, the next subrequest is not issued until the response is received for the preceding subrequest. For multi-dispatch clients interacting with \system, all $n$ system-level subrequests are in-flight at the same time, each is submitted in order and does not wait until the response is received for the preceding subrequest.
+We evenly distribute client processes across the 2 client machines. Client processes submit application-level requests. Each application-level request submits $n$ system-level subrequests, where $n$ is equal to the fanout parameter for a given experiment. 
 
-Each client process is a closed-loop client that submits a single application-level request at a time. The next application-level request is not submitted until all subrequests return. 
+For single-dispatch clients interacting with \mpaxos, only a single system-level subrequest is in-flight at a time, the next subrequest is not issued until the response is received for the preceding subrequest. For multi-dispatch clients interacting with \system, all $n$ system-level subrequests are in-flight at the same time, each is submitted in order and does not wait until the response is received for the preceding subrequest. Each client process is a closed-loop client that submits a single application-level request at a time. The next application-level request is not submitted until all subrequests return. 
 
-In each experiment, we scale the number of clients issueing requests to both systems from 2 to 128 by factors of 2. It's worth noting that since multi-dispatch clients have $n$ requests in-flight at a time, while single-dispatch clients only have 1 request in-flight at a time, \system leaders have to deal with $n$ more requests than \mpaxos at any given time for the same number of clients, which is a disadvantage for our system.
+In each experiment, we scale the number of clients issueing requests to both systems from 2 to 128 by factors of 2. It's worth noting that since multi-dispatch clients have $n$ requests in-flight at a time, while single-dispatch clients only have 1 request in-flight at a time, \system leaders have to deal with $n$ more requests than \mpaxos at any given time for the same number of clients.
 
 %For a fair comparison between MDL and SDL, we keep the number of outstanding requests sent to each system the same. To achieve this, MDL uses a smaller number of clients $K$ with the specified number $N$ of outstanding requests per client, while SDL uses $K*N$ clients each with 1 outstanding request per client.
 
 % \wl{How does keeping the overall number of requests the same mean the load is the same? We discussed this, you can explain this clearly: keep number of outstanding requests the same in both systems, for mdl this uses a smaller number of clients with the specified number of outstanding requests per client, for sdl its N clients with 1 outstanding request per client.}
-
-\subsection{Metrics}
-% perhaps we should look at p90
-We report on both the p99 and p50 for application-request latency. 
-We find p50 a useful metric to look at since our decision to evaluate application-level requests is already end-user facing. 
-
-While we report p99, we do not find this metric representative of the average case latency that users should expect when interacting with \system. This could be due to a number of factors, such as the variability of each system-level request (which we do not focus on improving), the single-threaded implementation of our servers, and our use of Golang tickers to implement epochs.
 
 \subsection{Workload}
 We consider uniform and skewed key distributions to explore a more representative range of realistic workloads. For the latter, we generate keys according to a Zipfian distribution with varying skew values $\theta \in \{0.5, 0.7, 0.9, 1.1, 1.3\}$, and use a keyspace of size 1 million. 
@@ -136,14 +134,14 @@ We consider uniform and skewed key distributions to explore a more representativ
 We do not vary the request type at all, all workloads are 100\% writes, since neither our protocol nor basic Paxos implement op-type specific optimizations. 
 
 \subsection{Failures}
-We do not consider leader failover in this evaluation. Since failures are rare, and unavoidably degrade performance for most protocols, we only consider the normal mode of operation for \system and \mpaxos. Details about the failover specifics in the protocol can be found in ~\ref{sec:design}.
+We do not consider leader failover in this evaluation. Since failures are rare, and unavoidably degrade performance for most protocols, we only consider the normal mode of operation for \system and \mpaxos. Details about failover specifics in the protocol can be found in ~\ref{sec:design}.
 
 \subsection{Single-Shard}
 In this section, we compare the end-to-end application request latency for \system and \mpaxos configured with a single shard. We consider uniform key distribution and vary the fanout parameter as $1$, $10$, $100$, and $1000$.
 
-For each fanout value, we find the number of clients that saturates \system, and show the p99 and p50 latencies. We also show the p99 and p50 latencies for \mpaxos for the same number of clients we picked for \system. Note, this selection for number of clients does not always saturate \mpaxos.
+For each fanout value, we pick the number of clients that reaches approximately $70\%$ \system's maximum throughput, and show the p99 and p50 latencies. We also show the p99 and p50 latencies for \mpaxos for the same number of clients we picked for \system. Note, this selection for number of clients is not representative of $70\%$ maximum throughput for \mpaxos.
 
-Figures ~\ref{fig:1shardp99} and ~\ref{fig:1shardp50} show the throughput latency curves for ranging fanout values of application-level requests. In the single-shard setting, the expected improvement is quite sensitive to our selection of epoch length, as well as the relationship between this value and leader-replica roundtrip latency. Idealistically, (1) concurrent requests arrive at the leader as soon as an epoch begins, (2) replicate at a majority in parallel, (3) immediately afterwards the epoch expires, (4) the final ordering roundtrip completes, and (5) the requests are executed. Realistically, requests might arrive halfway through an initial epoch, and therefore remain in the buffered log for an additional trailing epoch. Since our implementation uses an epoch value of 1ms, and the leader-replica latency is around 150$\mu$s, \system is unable to match \mpaxos until around fanout 10. %Moreover our golang implementation of timers...
+Figures ~\ref{fig:1shardp99} and ~\ref{fig:1shardp50} show the throughput latency curves for ranging fanout values of application-level requests. 
 
 While a protocol that provides \mdl could be optimized for a single-shard setting ~\ref{}, we did not change same multi-sharded protocol for a single shard, therefore we still issue coordination messages for each request which the leader must process. The coordination overhead on a single shard is somewhat smaller as compared to the multi-shard setting since there is no leader-to-leader latency. However, at higher fanouts, the leader is under higher load and must process a large log of buffered requests and each of their coordination messages. We notice a substantial improvement for latencies at fanouts $100$ and $1000$, approaching greater than 50\%. This improvement is attenuated by the processing of coordination overhead for each request.
 
@@ -174,8 +172,7 @@ Finally, we chose not to vary the amount of time between system-level subreqeust
 %mention that p50 is better.
 
 \subsection{Skew}
-In this section, we look at how varying key skew impacts the multi-shard performance of \system.
-Our graphs show various skew values for the 3-shard and 9-shard configurations. We look at CDFs for application-level requests with fanout 100 issued by 16 concurrent clients. 
+Figures ~\ref{fig:3shardsskew} -- ~\ref{fig:3shardsskewlast} and ~\ref{fig:9shardsskew} -- ~\ref{fig:9shardsskewlast} show various skew values for the 3-shard and 9-shard configurations. We look at CDFs for application-level requests with fanout 100 issued by 8 concurrent clients. 
 
 Overall we don't see much of an impact of skew on end-to-end latency.
 
