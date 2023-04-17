@@ -58,6 +58,19 @@
   numpages=30,
 }
 
+@article{papadimitriou1979serializability,
+  author={Papadimitriou, Christos H.},
+  title={The Serializability of Concurrent Database Updates},
+  journal=JACM,
+  volume=26,
+  number=4,
+  month=oct,
+  year=1979,
+  issn={0004-5411},
+  pages={631--653},
+  numpages=23,
+}
+
 @inproceedings{ongaro2014raft,
   author={Diego Ongaro and John Ousterhout},
   title={In Search of an Understandable Consensus Algorithm},
@@ -80,6 +93,27 @@
   author={Brian Oki and Barbara Liskov},
   crossref={podc1988},
   pages={8--17},
+}
+
+@inproceedings{mao2008mencius,
+  author={Mao, Yanhua and Junqueira, Flavio P. and Marzullo, Keith},
+  title={Mencius: Building Efficient Replicated State Machines for WANs},
+  crossref={osdi2008},
+  pages={369--384},
+}
+
+@inproceedings{moraru2013epaxos,
+  title={There Is More Consensus in Egalitarian Parliaments},
+  author={Iulian Moraru and David Andersen and Michael Kaminsky},
+  crossref={sosp2013},
+  pages={358--372},
+}
+
+@inproceedings{burke2020gryff,
+  author={Matthew Burke and Audrey Cheng and Wyatt Lloyd},
+  title={Gryff: Unifying Consensus and Shared Registers },
+  crossref={nsdi2020},
+  pages={591--617},
 }
 
 @inproceedings{lynch1987ioa,
@@ -117,4 +151,217 @@
   author={Patrick Hunt and Mahadev Konar and Flavio Junqueira and Benjamin Reed},
   crossref={atc2010},
   pages={1--14},
+}
+
+@article{lamport1979sequential,
+  author={Leslie Lamport},
+  journal=TOCS,
+  title={How to Make a Multiprocessor Computer That Correctly Executes Multiprocess Programs},
+  year=1979,
+  volume={C-28},
+  number=9,
+  pages={690--691},
+  issn={0018-9340},
+  month=sep,
+}
+
+@article{attiya1993seqlin,
+  author={Attiya, Hagit and Welch, Jennifer L.},
+  title={Sequential Consistency versus Linearizability},
+  journal=TOCS,
+  year=1994,
+  volume=12,
+  number=2,
+  issn={0734-2071},
+  month=may,
+  pages={91--122},
+  numpages=32
+}
+
+@techreport{goldman1993unifiedModel,
+  title={A Unified Model for Shared-Memory and Message-Passing Systems},
+  author={Kenneth Goldman and Katherine Yelick},
+  year=1993,
+  institution={Department of Computer Science and Engineering, Washington University in St. Louis},
+  number={WUCS-93-35},
+  source={https://openscholarship.wustl.edu/cse_research/324/},
+  address={St. Louis, MO},
+}
+
+@article{lundelius1984clocksync,
+  author={Jennifer Lundelius and Nancy Lynch},
+  title={An Upper and Lower Bound for Clock Synchronization},
+  journal={Information and Control},
+  volume=62,
+  number=2,
+  pages={190--204},
+  year=1984,
+  issn={0019-9958},
+}
+
+@article{fischer1985flp,
+  title={Impossibility of distributed consensus with one faulty process},
+  author={Michael Fischer and Nancy Lynch and Michael Paterson},
+  journal=JACM,
+  volume=32,
+  number=2,
+  pages={374--382},
+  year=1985,
+}
+
+@inproceedings{lloyd2011cops,
+  author={Lloyd, Wyatt and Freedman, Michael J. and Kaminsky, Michael and Andersen, David G.},
+  title={Don't Settle for Eventual: Scalable Causal Consistency for Wide-Area Storage with {COPS}},
+  crossref={sosp2011},
+  pages={401--416},
+}
+
+@inproceedings{lloyd2013eiger,
+  title={Stronger Semantics For Low-latency Geo-replicated Storage},
+  author={Wyatt Lloyd and Michael Freedman and Michael Kaminsky and David Andersen},
+  crossref={nsdi2013},
+  pages={313--328},
+}
+
+
+@article{cooper2008pnuts,
+  author={Cooper, Brian F. and Ramakrishnan, Raghu and Srivastava, Utkarsh and Silberstein, Adam and Bohannon, Philip and Jacobsen, Hans-Arno and Puz, Nick and Weaver, Daniel and Yerneni, Ramana},
+  title={{PNUTS}: Yahoo!'s Hosted Data Serving Platform},
+  year=2008,
+  publisher=VLDBEND,
+  volume=1,
+  number=2,
+  issn={2150-8097},
+  journal=VLDB,
+  month=aug,
+  pages={1277--1288},
+}
+
+@inproceedings{terry1995bayou,
+  author ={Terry, D. B. and Theimer, M. M. and Petersen, Karin and Demers, A. J. and Spreitzer, M. J. and Hauser, C. H.},
+  title ={Managing Update Conflicts in Bayou, a Weakly Connected Replicated Storage System},
+  crossref={sosp1995},
+  pages ={172--182},
+}
+
+@inproceedings{deCandia2007dynamo,
+ author={DeCandia, Giuseppe and Hastorun, Deniz and Jampani, Madan and Kakulapati, Gunavardhan and Lakshman, Avinash and Pilchin, Alex and Sivasubramanian, Swaminathan and Vosshall, Peter and Vogels, Werner},
+ title={Dynamo: {{Amazon's}} Highly Available Key-value Store},
+ crossref={sosp2007},
+ pages={205--220},
+}
+
+@phdthesis{adya1999weakcons,
+  author={Atul Adya},
+  advisor={Barbara Liskov},
+  school={MIT},
+  title={Weak Consistency: A Generalized Theory and Optimistic Implementations for Distributed Transactions},
+  month=mar,
+  year=1999,
+  publisher={MIT},
+  address={Cambridge, MA},
+}
+
+@article{corbett2013spanner,
+  author={Corbett, James C. and Dean, Jeffrey and Epstein, Michael and Fikes, Andrew and Frost, Christopher and Furman, J. J. and Ghemawat, Sanjay and Gubarev, Andrey and Heiser, Christopher and Hochschild, Peter and Hsieh, Wilson and Kanthak, Sebastian and Kogan, Eugene and Li, Hongyi and Lloyd, Alexander and Melnik, Sergey and Mwaura, David and Nagle, David and Quinlan, Sean and Rao, Rajesh and Rolig, Lindsay and Saito, Yasushi and Szymaniak, Michal and Taylor, Christopher and Wang, Ruth and Woodford, Dale},
+  title={Spanner: {Google's} Globally Distributed Database},
+  year=2013,
+  publisher=ACM,
+  address={New York, NY},
+  volume=31,
+  number=3,
+  issn={0734-2071},
+  journal=TOCS,
+  month=aug,
+  articleno=8,
+  numpages=22,
+}
+
+@article{zhang2018tapir,
+  author={Zhang, Irene and Sharma, Naveen Kr. and Szekeres, Adriana and Krishnamurthy, Arvind and Ports, Dan R. K.},
+  title={Building Consistent Transactions with Inconsistent Replication},
+  journal=TOCS,
+  year=2018,
+  publisher=ACM,
+  volume=35,
+  number=4,
+  issn={0734-2071},
+  month=dec,
+  articleno=12,
+  pages={12:1--12:37},
+  numpages=37,
+}
+
+
+@article{thomson2014calvin,
+  author={Thomson, Alexander and Diamond, Thaddeus and Weng, Shu-Chun and Ren, Kun and Shao, Philip and Abadi, Daniel J.},
+  title={Fast Distributed Transactions and Strongly Consistent Replication for OLTP Database Systems},
+  journal=TODS,
+  year=2014,
+  volume=39,
+  number=2,
+  issn={0362-5915},
+  month=may,
+  pages={11:1--11:39},
+}
+
+@article{mahmoud2013replicatedCommit,
+ author={Mahmoud, Hatem and Nawab, Faisal and Pucher, Alexander and Agrawal, Divyakant and El Abbadi, Amr},
+ title={Low-latency Multi-datacenter Databases Using Replicated Commit},
+ journal=VLDB,
+ volume=6,
+ number=9,
+ month=jul,
+ year=2013,
+ issn={2150-8097},
+ pages={661--672},
+ numpages=12,
+}
+
+@inproceedings{mu2014rococo,
+  author={Shuai Mu and Yang Cui and Yang Zhang and Wyatt Lloyd and Jinyang Li},
+  title={Extracting More Concurrency from Distributed Transactions},
+  crossref={osdi2014},
+  pages={479--494},
+}
+
+@inproceedings{mu2016janus,
+  author={Shuai Mu and Lamont Nelson and Wyatt Lloyd and Jinyang Li},
+  title={Consolidating Concurrency Control and Consensus for Commits under Conflicts},
+  crossref={osdi2016},
+  pages={517--532},
+}
+
+@inproceedings{kraska2013mdcc,
+  author={Tim Kraska and Gene Pang and Michael J. Franklin and Samuel Madden and Alan Fekete},
+  title={{MDCC}: Multi-data Center Consistency},
+  crossref={eurosys2013},
+  pages={113--126},
+}
+
+@article{ren2019slog,
+  author={Ren, Kun and Li, Dennis and Abadi, Daniel J.},
+  title={{SLOG}: Serializable, Low-Latency, Geo-Replicated Transactions},
+  year=2019,
+  publisher=VLDBEND,
+  volume=12,
+  number=11,
+  issn={2150-8097},
+  journal=VLDB,
+  month=jul,
+  pages={1747--1761},
+}
+
+@inproceedings{taft2020crdb,
+  author={Taft, Rebecca and Sharif, Irfan and Matei, Andrei and VanBenschoten, Nathan and Lewis, Jordan and Grieger, Tobias and Niemi, Kai and Woods, Andy and Birzin, Anne and Poss, Raphael and Bardea, Paul and Ranade, Amruta and Darnell, Ben and Gruneir, Bram and Jaffray, Justin and Zhang, Lucy and Mattis, Peter},
+  title={{CockroachDB}: The Resilient Geo-Distributed {SQL} Database},
+  crossref={sigmod2020},
+  pages={1493--1509},
+}
+
+@inproceedings{yan2018carousel,
+  author={Yan, Xinan and Yang, Linguan and Zhang, Hongbo and Lin, Xiayue Charles and Wong, Bernard and Salem, Kenneth and Brecht, Tim},
+  title={Carousel: Low-Latency Transaction Processing for Globally-Distributed Data},
+  crossref={sigmod2018},
+  pages={231--243},
 }
