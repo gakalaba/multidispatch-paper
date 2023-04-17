@@ -2,8 +2,7 @@
 \label{sec:mdl}
 
 In this section, we define \multidispatch{} linearizability and show how
-applications can be transformed to reap the performance benefits of this
-new consistency model while appearing to behave identically to users.
+applications can be transformed to reap the performance benefits it offers while appearing to behave identically to users.
 We first describe our model of distributed applications
 (\S\ref{sec:mdl:applications} and \S\ref{sec:mdl:systems}).
 We then define \MDL{} (\S\ref{sec:mdl:def}). We conclude with a description
@@ -22,8 +21,8 @@ messages, and invoking operations on \textit{systems}.
 
 An application's processes define a prefix-closed set of \textit{executions},
 which are sequences $s_0,\pi_1,s_1,\ldots$ of alternating \textit{states} and
-\textit{actions}, starting and ending with a state. An application state
-is an $n$-length vector containing each process's state.
+\textit{actions}, starting and ending with a state. An application's state
+is an $n$-length vector containing that state of each process.
 
 Each action is a step taken by exactly one process and is one of three types:
 \textit{internal}, \textit{input}, or \textit{output}. Internal actions model
@@ -43,11 +42,10 @@ uses an output action $\request_{ij}$ and later, an input action
 $\receive_{ij}(m)$ occurs, signaling the receipt of $m$.
 
 We assume users interact with processes through similar such channels. This
-allows our formalism to model scenarios where human users interact with
+allows our formalism to model both where human users interact with
 directly with the application but also where one application is the client
 of another, as common in data centers~\cite{kraken2016veeraraghavan,malteThesis}.
-In the latter case, however, we assume users do not interact directly with the
-back-end system.
+In the latter case, however, we assume users do not interact directly with the back-end system (defined below).
 
 Given an execution $\alpha$, we will often refer to an individual process's
 \textit{sub-execution}, denoted $\alpha|P_i$. $\alpha|P_i$ comprises
@@ -91,17 +89,26 @@ $\complete(\alpha)$, we define $\complete(\alpha)||P$ as the
 $\complete(\alpha)||P$ is found by, for each operation $o$, shifting $o$'s response
 $\res(o)$ left in $\complete(\alpha)|P$ until it immediately follows $o$'s
 invocation $\inv(o)$.
+Importantly, this maintains a process's
+\textit{issue order}, the order it invoked its operations.
 
 Two actions in an execution $\alpha$ are
 ordered in real time~\cite{herlihy1990linearizability}, denoted
 $\pi_1 \rt_\alpha \pi_2$, if $\pi_1$ is a response, $\pi_2$ is an
 invocation, and $\pi_1$ precedes $\pi_2$ in $\alpha$.
+We can also lift $\rt_\alpha$ to operations in the natural
+way.
 
 \noindentparagraph{\Multidispatch{} Linearizability.} An execution $\alpha_1$ satisfies \textit{\multidispatch{} linearizability (\MDL{})} if it
 can be extended by adding zero or more responses to create $\alpha_2$ such that
 there exists a sequence $S \in \spec$ where (1) for all $P$,
 $S|P = \complete(\alpha_2)||P$; and (2) for all pairs of operations
 $o_1,o_2$, $o_1 \rt_{\alpha_1} o_2 \implies o_1 <_S o_2$.
+
+In plain language, an \MDL{} system guarantees it reflects a total order 
+over operations. This order is constrained in two ways: First,
+it must be consistent with each process's issue order, and second, 
+it must be consistent with the real-time order of operations.
 
 \subsubsection{Suffix-Closed Failures}
 \label{sec:mdl:def:failures}

@@ -11,9 +11,18 @@ Consider a pair of operations $e_1, e_2$ such that $e_1 <_p e_2$, and further as
 
 \begin{lemma}
 \label{lemma2}
-Consider a pair of operations $e_1, e_2$ such that $e_1 <_x e_2$, and further assume each operation is coordinated and committed and been assigned timestamp $\varepsilon_1, \varepsilon_2$, respectively. Then, $\varepsilon_1 < \varepsilon_2$.
+Consider a pair of operations $e_1, e_2$ such that $e_1 <_x e_2$, and further assume each operation is coordinated and committed and been assigned timestamp $\varepsilon_1, \varepsilon_2$ at their respective shards. Then, $\varepsilon_1 < \varepsilon_2$.
 \end{lemma}
 \begin{proof}
+%Algorithms~\ref{clientprotocol}, ~\ref{shardprotocolmessages},and~\ref{shardprotocolmessages}
+All operations must send coordination requests to their predecessors, by line 11 of Algorithm~\ref{clientprotocol}. When $e_1$ receives the coordination request sent by the client for $e_2$, $e_1$ cannot respond until it is committed and coordinated, by line 9 of Algorithm~\ref{shardprotocolcoord}.
+
+% By 
+% When a request is committed and coordinated, it sets its timestamp ε = max(εpred+1, εshard).
+% When a request sends a response to a coordination request, it send ε, by line XXX. Thus e1 will send ε1 to e2, where ε1 = max(ε1pred+1, εshard1).
+% When e2 receives a response to its coordination request from e1, it will set its timestamp ε2 = max(ε1+1, εshard2).
+% Trivially, ε1 < ε2 = max(ε1+1, εshard2)
+
 \end{proof}
 
 
@@ -34,10 +43,10 @@ We prove the lemma by contradiction, assuming the partial order contains a cycle
 
 \noindentparagraph{Property 1.} \textit{The cycle contains no consecutive $<_p$ edges.} {Assume for the sake of contradiction there exist two consecutive $<_p$ edges $e_i <_p e_{i+1} <_p e_{i+2}$. By the transitivity of $<_p$, there exists a shorter edge $e_i <_p e_{i+2}$ which is part of the shorter cycle $..., e_i, e_{i+2}, ..., e_i$, a contradiction.}
 \noindentparagraph{Property 2.} \textit{The cycle contains no consecutive $<_x$ edges.} {Using similar reasoning as in the above, $e_i <_x e_{i+1} <_x e_{i+2}$ would imply the existence of a shorter cycle that contains the edge $e_i <_x e_{i+2}$, a contradiction.}
-\noindentparagraph{Property 3.} \textit{The cycle contains at most 1 $\rightarrow$ edge.} Assume for the sake of contradiction that the cycle contains two $\rightarrow$ edges, $e_i \rightarrow e_j .... e_k \rightarrow e_l$, where $i < j \leq k < l$, reindexing the cycle if necessary. From the definition of $\rightarrow$, we know $resp(e_i) < inv(e_j)$ and $resp(e_k) < inv(e_l)$. We also know $inv(e_l) < resp(e_i)$, otherwise a shorter cycle would exist containing the edge $e_i \rightarrow e_l$. Similarly, we also know $inv(e_j) < resp(e_k)$, otherwise a shorter cycle would exist containing the edge $e_k \rightarrow e_j$. We arrive at a contradiction, since $resp(e_i) < inv(e_j) < resp(e_k) < inv(e_l) < resp(e_i)$, which gives $resp(e_i) < resp(e_i)$.
+\noindentparagraph{Property 3.} \textit{The cycle contains at most 1 $\rightarrow$ edge.} Assume for the sake of contradiction that the cycle contains two $\rightarrow$ edges, $e_i \rightarrow e_j .... e_k \rightarrow e_l$, where $i < j \leq k < l$, reindexing the cycle if necessary. From the definition of $\rightarrow$, we know $\resps(e_i) < \invs(e_j)$ and $\resps(e_k) < \invs(e_l)$. We also know $\invs(e_l) < \resps(e_i)$, otherwise a shorter cycle would exist containing the edge $e_i \rightarrow e_l$. Similarly, we also know $\invs(e_j) < \resps(e_k)$, otherwise a shorter cycle would exist containing the edge $e_k \rightarrow e_j$. We arrive at a contradiction, since $\resps(e_i) < \invs(e_j) < \resps(e_k) < \invs(e_l) < \resps(e_i)$, which gives $\resps(e_i) < \resps(e_i)$.
 
 We carry on to prove $<_\psi$ is acyclic. By Property 3, we have two cases:
-\noindentparagraph{Case 1.} Assume there are zero $\rightarrow$ edges in the minimum cycle. Since $n \geq 2$
+\noindentparagraph{Case 1.} Assume there are zero $\rightarrow$ edges in the minimum cycle. Since $n \geq 2$, and by Properties 1 and 2, we know at least one edge is a $<_x$ edge and at least one edge is a $<_p$ edge. Also by properties 1 and 2, we know the cycle must alternate between $<_{x_i}$ and $<_{p_i}$ edges. WLOG, re-index the cycle such that $e_1 <_{x_2} e_2 ... <_{p_1} e_1$.
 By repeated application of Lemmas~\ref{lemma1} and ~\ref{lemma2}, we see $\varepsilon_1 < \varepsilon_n$. But by Lemma~\ref{lemma2}, $\varepsilon_n < \varepsilon_1$, a contradiction.
 \noindentparagraph{Case 1.} Assume there is one $\rightarrow$ edges in the cycle.
 
