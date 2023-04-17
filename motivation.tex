@@ -1,8 +1,23 @@
 \section{Background \& Motivation}
 
+In this section, we first provide the necessary background on 
+distributed applications and the motivating example that we will
+use throughout the paper. We then motivate the need for our
+new consistency model and system. 
+
 \subsection{Distributed Applications}
 
-Clients are front-end applications, running on webservers, that submit requests to stateful services, such as databases or kv-stores, running on storage servers located within the same datacenter or different datacenters as the webservers.
+A distributed application comprises two components: Users
+interact with the application by sending messages to
+\textit{application processes}, for instance, by submitting
+an HTTP request. In response, the 
+processes may perform local computation, exchange messages, or
+interact with a back-end \textit{system}.
+
+Such systems, such as databases or key-value stores, are typically
+located within the same (or a nearby) data center as the application 
+processes. They are designed to handle the challenges of
+programming in distributed environments, such as fault-tolerance.
 
 \subsection{Motivating Example: Photo-Sharing App}
 
@@ -16,7 +31,7 @@ linearizable~\cite{herlihy1990linearizability} key-value store
 using a unique key. A photo's key maps to a binary blob, and
 an album's key maps to structured data containing the keys of
 all of its photos. If a key is read but is not present, the
-key-value store simply returns \texttt{null}.
+key-value store returns \texttt{null}.
 
 When a user uploads $N$ photos to an album, a Web server
 issues $N+1$ operations: First, it inserts $N$ key-value
@@ -36,7 +51,7 @@ Programmers rely on a system's consistency model while building their applicatio
 
 \wl{It would be great to include an additional example of many system interactions beyond the Facebook paper, especially if it wasn't from a hyperscaler}
 
-Existing consistency models, however, are increasingly insufficient for modern Web applications as they grow in scale and complexity. For example, Meta reports that processing a user's Web request can result in thousands of system interactions, with dozens of operations on the critical path \cite{ajoux2015challenges}. But many consistency models assume application processes have at most one outstanding operation to the system at a time \cite{ahamad1995causal,herlihy1990linearizability}. Thus, a Web server that obeys this assumption and issues dozens of operations sequentially
+Existing consistency models, however, are increasingly insufficient for modern Web applications as they grow in scale and complexity. For example, Meta reports that processing a user's Web request can result in thousands of system interactions, with dozens of operations on the critical path \cite{ajoux2015challenges,dean2013tail}. But many consistency models assume application processes have at most one outstanding operation to the system at a time \cite{ahamad1995causal,herlihy1990linearizability}. Thus, a Web server that obeys this assumption and issues dozens of operations sequentially
 (e.g., if a user uploads multiple photos in our example application)
 will incur significant application latency.
 
@@ -64,5 +79,16 @@ can quickly become complex.
 Fixing applications also forces programmers to consider the system's implementation,
 diminishing the usefulness of the consistency model.
 
-In the following sections, we propose a new multi-issue consistency model, multi-issue linearizability, to begin to remedy this tension. Multi-issue linearizability explicitly allow applications to issue operations concurrently. Consequently, it enables applications to achieve lower end-to-end latency. Provided programmers obey a set of rules when parallelizing their applications (described in Section~\ref{sec:}), an application interacting with a multi-issue linearizability system will behave identically to the original application interacting with a linearizable system. Thus, programmers can reap these performance benefits without fear of breaking their applications.
-\wl{please put the figs in a figs/ directory :)}
+In the next section, we propose a new \multidispatch{} 
+consistency model, \md{}-linearizability, to remedy this 
+tension. \Multidispatch{} linearizability explicitly allows 
+applications to issue operations concurrently.
+
+% Consequently, it 
+% enables applications to achieve lower end-to-end latency. Provided 
+% programmers obey a set of rules when parallelizing their applications 
+% (described in Section~\ref{sec:}), an application interacting with a 
+% multi-issue linearizability system will behave identically to the 
+% original application interacting with a linearizable system. Thus, 
+% programmers can reap these performance benefits without fear of 
+% breaking their applications.
