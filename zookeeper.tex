@@ -6,9 +6,9 @@ There are several existing systems that could be used to implement
 we briefly describe them and then show how they fail to extend to
 multiple shards.
 
-\begin{figure}[!htb]
+\begin{figure}[!tb]
     \includegraphics[scale=.45]{figs/somet.png}
-    \caption{Example execution where two concurrent processes each submit 2 concurrent requests. Assume keys \textbf{X} and \textbf{Y} are at different shards. It is possible that $R_2$ arrives before $W_1$ at shard \textbf{X}, and $W_2$ arrives before $R_1$ at shard \textbf{Y}. Since processes expect their concurrent requests to take affect in invocation order, if $R_1$ returns 1, then $W_1$ must have taken affect before $R_1$, so $R_2$ should necessarily return a value of 1.}
+    \caption{Example execution where two concurrent processes each submit 2 concurrent operations. Assume keys \textbf{X} and \textbf{Y} are at different shards. It is possible that $R_2$ arrives before $W_1$ at shard \textbf{X}, and $W_2$ arrives before $R_1$ at shard \textbf{Y}. Since \MDL{} requires operations to take effect in invocation order, if $R_1$ returns 1, then $W_1$ must have taken affect before $R_1$, so $R_2$ should necessarily return a value of 1.}
     \label{fig:concurrentbatches}
 \end{figure}
 
@@ -20,7 +20,7 @@ consistency model. The authors denote it Asynchronous Linearizability
 A-Linearizability differs from \MDL{} because Zookeeper allows
 reads to return stale (i.e., non-linearizable) reads.
 
-\true{To handle concurrent requests from the same process, Zookeeper uses
+\true{To handle concurrent operations from the same process, Zookeeper uses
 per-process sequence numbers.} Sequence numbers are assigned at the process 
 library and increase monotonically. This provides sufficient information to 
 the leader to ensure each process's operations are put in its log in an

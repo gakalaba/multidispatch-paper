@@ -61,7 +61,7 @@ number of shards, but reduces end-to-end latency for application level-requests
 by up to 75\% when fan-out increases and scales with the number of shards.
 
 \subsection{Experimental Set-up}
-All experiments are conducted on Cloudlab's Utah platform~\cite{cloudlab}, using
+All experiments are conducted on Cloudlab's Utah platform~\cite{duplyakin2019cloudlab}, using
 m510 machines.  Each machine has 1 Intel Xeon-D processor with 8 physical cores
 running at 2 GHz and hyperthreading enabled, 64 GB of DDR4-2133 RAM, and a 10
 Gb/s NIC\@.  Our setup consists of a 9-node server cluster and 2 additional
@@ -141,7 +141,7 @@ $1$ to $1000$.
 \system has lower latency than \mpaxos when fan-out is larger than $1$---over 2x
 faster at fanouts $100$ and $1000$---but, in general, performs sub-optimally due
 to unnecessary coordination requests. While a protocol that provides \mdl could
-be optimized for a single-shard setting~\cite{ongarothesis}, we only evaluate
+be optimized for a single-shard setting~\cite{ongaro2014consensus}, we only evaluate
 our multi-sharded protocol and, therefore, still issue coordination messages for
 each request.
 
