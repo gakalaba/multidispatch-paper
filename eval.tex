@@ -210,22 +210,18 @@ Figures~\ref{fig:3shardp99first}---~\ref{fig:3shardp99last}
 and~\ref{fig:9shardp99first}---~\ref{fig:9shardp99last} show p99 latencies and
 throughput for 3-shard and 9-shard configurations, respectively.
 
-As fanout increases, \system{} latency should approach 1/4th that of \mpaxos.
-As described in section ~\ref{sec:design}, an application-level request of
-fanout $n$ induces $n-1$ 1-way intershard coordination messages, that must be
-serialized with predecessor fault-tolerance and coordination. On the other hand,
-load balancing of large number of requests across multiple shards helps speed
-the processing time at each leader.
+Somewhat counter-intuitively, three shards outperforms nine shards. Similar to
+the single-shard case, with fewer shards there is the average leader-leader
+coordination latency is lower, as fewer operations coordinate across leaders.
+This is attenuated by higher per-shard load, as in the single-shard case.
 
-\al{todo: don't understand}
-We see the 9 shard configuration approach this lower bound, with p99 latency
-close to 25\% that of \mpaxos for fanouts $100$ and $1000$. Similarly, we see 3
-shards outperform 9 shards due to less leader-leader latency for application
-requests that issue subrequests across fewer distinct leaders. One way to
-achieve similar performance for the single shard configuration could be to
-configure multiple virtual shards on a single physical machine. This would allow
-the benefits of distirbuting high fanout load while avoiding leader-leader
-coordination latency overheads.
+The nine-shard configuration approaches the lower bound improvement over \mpaxos
+described in~\ref{sec:design} for fanouts $100$ and $1000$, with p99 latency
+close to 25\% of \mpaxos.  An application-level request of fanout $n$ induces
+$n-1$ 1-way intershard coordination messages, that must be serialized with
+predecessor fault-tolerance and coordination. On the other hand, load balancing
+of large number of requests across multiple shards helps speed the processing
+time at each leader.
 
 \subsection{Skew}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
