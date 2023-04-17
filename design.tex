@@ -39,10 +39,40 @@
 % 1. what are the key features it needs to do. which component of the protocol does that.
 % 2. include parts in the motivation that describe why you can't simply do "X". and then in design you can refer to motivation...
 
-\sys{} achieves two goals simultaneously: First, it guarantees \multidispatch{}
-linearizability of concurrent requests both within and across clients that span
+
+* provides mdl across shards\\
+* tolerates f crash failures per shard with 2f+1 replicas\\
+** each shard runs multi-paxos\\
+* does so with end-to-end app latency much lower that a similar sdl design: roughly 1/4 the latency\\
+
+\paragraph{\sys{} Overview.}
+* Three phases per operation:\\
+** parallel replication of each op for ft, sequential coordination, and then parallel ordering replication\\
+* initial parallel replication occur before coordination, which ensures our suffix-complete failure semantics\\
+* sequential coordination ensures the legal total order required by \mdl{} will exist\\
+** it is not replicated and is a single shard-to-shard message, which is what leads to roughly 1/4 the latency of \sdl\\
+** safe because of a special recovery protocol that allows us to safely redo coordination for committed-but-not-ordered operations\\
+* parallel ordering replication ensures durability of ordering information before execution\\
+
+
+* provides \mdl{}'s ordering through coordination messages\\
+** in the failure-free case, ...
+** in the case of the leader of a shard failing, ...
+
+
+Our key insight is that decoupling fault tolerance and ordering into two separate rounds of replication allows us to provide \mdl{} across shards using sequential coordination that is not replicated.
+
+
+client-drive coordination makes the sequential coordination only take 1 shard-to-shard message.
+
+
+
+
+
+
+\sys{} achieves two goals simultaneously: First, it guarantees \mdl{} across
 multiple shards. Second, it achieves lower end-to-end application compared to a
-similar (single-dispatch) Linearizable system, while providing the equivalent
+similar (single-dispatch) Linearizable system, while providing equivalent
 ordering guarantees. To do so, \sys{} employs three techniques:
 
 % Design V1: Clients issue multiple ops and send coordination requests to prior ops
@@ -146,23 +176,47 @@ also been replicated.
 %inter-shard message. This is worse than linearizable Raft, which just requires
 %one quorum round-trip per operation.
 
-A key insight of \sys{} is to decouple fault-tolerance from ordering, allowing
-replication of concurrent operations to proceed in parallel on different shards,
-separate from ordering. While in existing state-machine replication protocols
-operations are either committed or uncommitted, operations in \sys{} can be in
-one five states: \textit{pending}, \textit{committed} but not
-\textit{coordinated}, \textit{coordinated} but not \textit{committed},
-\textit{committed} and \textit{coordinated}, and \textit{ordered}.
+A key insight of \sys{} is to decouple fault-tolerance from ordering,
+allowing replication of concurrent operations to proceed in parallel
+on different shards, separate from ordering. While in existing
+state-machine replication protocols operations are either uncommitted
+or committed, operations in \sys{} proceed through the following four
+states:
+\textit{pending},
+\textit{committed},
+\textit{coordinated},
+and
+\textit{ordered}.
 
-When an operation arrives at a shard leader, it is \textit{pending}. Once the
-shard has replicated the operation to a quarum of replicas, the operation
-becomes \textit{committed}, and the shard can respond to the client. A
-\textit{committed} is guaranteed not to fail---i.e.\ it is guaranteed to
+\wl{I removed the 'respond to the client' claim about what happens after something is committed. That seem like an optimization only for write-only operations?}
+
+
+NEED TO MENTION ALREADY:
+coordinate messages
+predecessor/successor
+pending set
+ordered log
+interface ...
+* client library that receives operations, the order it receives them is the issue order
+
+When an operation arrives at a shard leader, it is \textit{pending} and it is added to the pending set.
+The shard leader replicates the operation to its replicas and once it receives a quorum of acknowledgements,
+the operation is \textit{committed}.
+The shard leader immediately...
+
+
+
+Our protocol guarantees that a committed operation is eventually execited.
+When the shard leader receives a coordinate response message that indicates all predecessor operations are coordinated, then this operation is \textit{coordinated}.
+
+
 eventually be ordered, even under, e.g., leader changes. Operations are
 considered \textit{coordinated} once all of their predecessors (operations
 invoked earlier by the same client) are both committed and coordinated.
 Operations with no predecessors are immediately coordinated. Once an operation
-is both committed \emph{and} coordinated, it can added to the ordered log.  An
+is both committed \emph{and} coordinated, it can added to the ordered log.
+
+An
 operation that has been included in the ordered log at both a leader and a
 quorum of replicas is considered \textit{ordered}. Leaders and replicas execute
 ordered requests in the same fashion as Raft~\cite{ongaro2014raft}, and leaders
@@ -186,10 +240,14 @@ Once the operation is \textit{coordinated}, the leader must again replicate its
 execution of operations at each shard into a series of \textit{epochs}. At the
 end of each epoch, operations from the pending set that have been coordinated
 are sorted (Section~\ref{sec:design:timestamps}) and their order replicated to a
-quarum in batch.
+quorum in batch.
 
 \wl{I don't think we need the following paragraph, or at least we don't need it here. I don't think something is ``FAILING'' to be included, it's just not being included yet. You haven't said anything that suggests to me that operations are moved from the pending set in the same order they arrived, so the following paragraph just adds confusion and overhead for me.}
 
+
+
+
+\paragraph{Suffix-complete failure semantics.}
 \wl{Instead what I think we need is an explicit slash-paragraph discussion of failures and how we ensure suffix-complete failure semantics.}
 
 Operation in the pending set may fail to be included in the current epoch for
@@ -202,10 +260,10 @@ predecessors' shards.
 
 \al{I don't understand the FAIL thing}
 
-\subsubsection{Operation vs. End-To-End Latency}
+\subsubsection{Operation vs.\@ End-To-End Latency}
 
 Although decoupling fault-tolerance and ordering increases each operation's latency by introducing a
-second round of messages between a leader and its replicas, it still improves end-to-end application
+second round of messages between a leader and its replicas, it improves end-to-end application
 latency of applications that issue more than a few operations. This is because shards can replicate
 operations from the same client in parallel. As described in the section below, using Lamport timestamps,
 shards can safely order and execute operations in parallel, too. Thus, only the cross-shard coordination
