@@ -3,7 +3,7 @@
 In this section, we first provide the necessary background on 
 distributed applications and the motivating example that we will
 use throughout the paper. We then motivate the need for our
-new consistency model and system. 
+new consistency model and system.
 
 \subsection{Distributed Applications}
 
@@ -42,20 +42,38 @@ reads (one at a time) each of its photo's binary blob before
 returning the aggregated contents to the user.
 
 \wl{this example app is okay, but hopefully we can come up with a better one. This one isn't ideal because storing blob bodies in the data store is normal at small scale but unusual at large scale (where there are specific blob stores) and returning them in line is particularly unusual}
-
 \wl{ideally the example would not be based on existence of an object, which is easy for apps to fix with a retry loop}
 
 \subsection{Consistency Models \& App Latency}
 
 Programmers rely on a system's consistency model while building their applications. By defining the system's set of allowed behaviors, a consistency model permits programmers to ignore the system's implementation and instead focus on ensuring their applications are correct given these behaviors.
 
-\wl{It would be great to include an additional example of many system interactions beyond the Facebook paper, especially if it wasn't from a hyperscaler}
+% \wl{It would be great to include an additional example of many system interactions beyond the Facebook paper, especially if it wasn't from a hyperscaler}
+% Jeff: I managed to add another in Jeff Dean's Tail at Scale but
+% didn't find any from non-hyperscalar.
 
 Existing consistency models, however, are increasingly insufficient for modern Web applications as they grow in scale and complexity. For example, Meta reports that processing a user's Web request can result in thousands of system interactions, with dozens of operations on the critical path \cite{ajoux2015challenges,dean2013tail}. But many consistency models assume application processes have at most one outstanding operation to the system at a time \cite{ahamad1995causal,herlihy1990linearizability}. Thus, a Web server that obeys this assumption and issues dozens of operations sequentially
 (e.g., if a user uploads multiple photos in our example application)
 will incur significant application latency.
 
-\wl{I think we really want a figure here with three subfigures that show an execution with a) single dispatch (slow but correct), b) naive parallelization (fast but incorrect), c) multi-issue linearizabiity (fast and correct).}
+\begin{figure}[tbp]
+\centering
+\subfloat[Single Dispatch]{
+  \includegraphics[scale=.45,page=1]{figs/motivation_figs.pdf}
+  \label{fig:motivation:sdl}
+}
+\hfill
+\subfloat[Naive \Multidispatch{}]{
+  \includegraphics[scale=.45,page=2]{figs/motivation_figs.pdf}
+  \label{fig:motivation:naive}
+}
+\caption{
+A comparison of our example application when used with a
+\singledispatch{} linearizable key-value store and a naive
+attempt to introduce \multidispatch{}.
+}
+\label{fig:motivation}
+\end{figure}
 
 \subsection{Naive Parallelization Is Error-Prone}
 
@@ -64,14 +82,28 @@ and thus reduce application latency. But doing so violates one of the consistenc
 model's assumptions, potentially causing unspecified system behavior,
 which in turn may break their application.
 
-To illustrate this problem, consider our example application above.
-When uploading a photo, since the key-value store guarantees
-linearizability~\cite{herlihy1990linearizability} and the application issues the
-insert(s) and read-modify-write operations sequentially, then a photo's blob will
+This problem is illustrated in Figure~\ref{fig:motivation}. We
+show a user $W$ uploading two photos to an album $A$. At the same time, a
+second user $R$ attempts to viewer the album. On the left, we show the
+resulting Web server interactions with a linearizable key-value server $S$.
+Because the key-value store guarantees
+linearizability~\cite{herlihy1990linearizability} and $W$ issues the
+two inserts and append sequentially, then a photo's blob will
 always exist in the store once its key is visible in an album.
-If it issues the operations concurrently, however, their effects may appear in either order,
-so a photo's key may appear in an album before its blob is readable.
-The application code to view an album will therefore need to be fixed to handle this new case.
+Thus, $R$'s second and third reads will never return \texttt{null}.
+
+On the right, we show what can happen if we naively try to issue multiple
+operations concurrently while still using a linearizable key-value store.
+The uploader $W$ can issue all three operations concurrently, and the
+viewer $R$ can issue the latter two reads concurrently (after getting the keys
+from the list returned by the first read). In both cases, we see that the
+end-to-end application latency is lower.
+
+But because the uploader issues the operations concurrently,
+their effects may appear in either order, so a photo's key may appear in an 
+album before its blob is readable. Thus, $R$'s second and third reads may now
+return \texttt{null}. The application code to view an album would therefore
+need to be fixed to handle this new case.
 
 Although the fix for our example application is relatively straightforward,
 reasoning about the system's behavior in such cases (and how it impacts application behavior)
