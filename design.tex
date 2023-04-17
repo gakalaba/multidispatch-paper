@@ -15,6 +15,8 @@
 \SetKwFunction{sortps}{sortByLamportEpoch}
 \SetKwFunction{executeRetClie}{executeAndSubmitOpReply}
 \SetKwFunction{clientSubmit}{Client::SubmitOp}
+\SetKwFunction{leaderHandleAccept}{Leader::AcceptRespRecv}
+\SetKwFunction{leaderHandleFinalAccept}{Leader::FinalAcceptRespRecv}
 \SetKwFunction{clientWait}{Client::SubmitOpReplyRecv}
 \SetKwFunction{leaderSubmit}{Leader::SubmitOpRecv}
 \SetKwFunction{replicaCoord}{Replica::coordRequestRecv}
@@ -24,6 +26,7 @@
 \SetKwFunction{append}{.append}
 \SetKwFunction{find}{.find}
 \SetKwFunction{pop}{.pop}
+\SetKwFunction{execute}{execute}
 
 \algnewcommand{\IfThenElse}[3]{% \IfThenElse{<if>}{<then>}{<else>}
   \algorithmicif\ #1\ \algorithmicthen\ #2\ \algorithmicelse\ #3}
@@ -271,29 +274,208 @@ TODO: Add intuition about why these invariants are needed.
 % batching is a nice fit since it can exploit this high load
 % moreover, ordering a request does not depend on previously arrived requests from independent clients to be ordered, hwich is a nice design that allows each client to see issue order scale with just their behavior, not other clients'.
 
+\begin{figure}
+\begin{tikzpicture}
+[box/.style={draw=none, thick, font=\small, text centered, minimum height=1.2cm, minimum width=1.0cm}]
+\newcommand\w{3}
+\newcommand\h{5}
+
+\node (clientbox) [box, yshift=6.5cm] {$C$};
+
+\node (leaderbox) [box, yshift=6.5cm, xshift=\w cm] {$L_1$};
+
+\node (replicabox) [box, yshift=6.5cm, xshift=2*\w cm] {$R$};
+% C
+\draw [stealth-](0,0) -- (0,\h+1);
+% L1
+\draw [stealth-](\w,0) -- (\w,\h+1);
+% R1
+\draw [stealth-](2*\w,0) -- (2*\w,\h+1);
+
+% Left T{
+\draw [decorate,
+    decoration = {brace}] (\w-0.05,-0.15) --  (0,-0.15);
+\node [box, yshift=-0.5cm, xshift=0.5*\w cm] {$T$};
+
+% Right T{
+\draw [decorate,
+    decoration = {brace}] (2*\w,-0.15) --  (\w+0.05,-0.15);
+\node [box, yshift=-0.5cm, xshift=1.5*\w cm] {$T$};
+
+
+% Req1
+\node [box, yshift=4.5cm, xshift=6.5cm] {$Req_1$};
+% Top 4*T {
+\draw [decorate,
+    decoration = {brace}] (-0.15,4) --  (-0.15,5);
+\node [box, yshift=4.5cm, xshift=-0.75 cm] {$4*T$};
+
+% Req2
+\node [box, yshift=3.25cm, xshift=6.5cm] {$Req_2$};
+% Middle 4*T {
+\draw [decorate,
+    decoration = {brace}] (-0.15,2.75) --  (-0.15,3.75);
+\node [box, yshift=3.25cm, xshift=-0.75 cm] {$4*T$};
+
+% ReqN
+\node [box, yshift=1.25cm, xshift=6.5cm] {$Req_N$};
+% Bottom 4*T {
+\draw [decorate,
+    decoration = {brace}] (-0.15,0.75) --  (-0.15,1.75);
+\node [box, yshift=1.25cm, xshift=-0.75 cm] {$4*T$};
+
+% First request message < 4 Ts
+\draw [-stealth](0,\h) -- (\w,0.95*\h);
+\draw [-stealth](\w,0.95*\h) -- (2*\w,0.9*\h);
+\draw [-stealth](2*\w,0.9*\h) -- (\w,0.85*\h);
+\draw [-stealth](\w,0.85*\h) -- (0,0.8*\h);
+
+% Second request messages < 8 Ts
+\draw [-stealth](0,0.75*\h) -- (\w,0.7*\h);
+\draw [-stealth](\w,0.7*\h) -- (2*\w,0.65*\h);
+\draw [-stealth](2*\w,0.65*\h) -- (\w,0.6*\h);
+\draw [-stealth](\w,0.6*\h) -- (0,0.55*\h);
+
+% ellipses ...
+\draw (0.2*\w,0.45*\h) node[auto=false]{\ldots};
+
+% Last request message < 4*N Ts
+\draw [-stealth](0,0.35*\h) -- (\w,0.3*\h);
+\draw [-stealth](\w,0.3*\h) --  (2*\w,0.25*\h);
+\draw [-stealth](2*\w,0.25*\h) -- (\w,0.2*\h);
+\draw [-stealth](\w,0.2*\h) -- (0,0.15*\h);
+\end{tikzpicture}
+\caption{Performance for SDL. Since clients must issue requests sequentially, we expect N requests issued to take around $4*T*N$ units of time, where $T$ is the latency between servers. In our case we assume this latency is equivalent between clients and leaders, as well as leaders and replicas. We only display a single shard case since the latency should be equivalent for multiple shards.}
+\label{fig:sdlperf}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}
+\begin{tikzpicture}
+[box/.style={draw=none, thick, font=\small, text centered, minimum height=1.2cm, minimum width=1.0cm}]
+\newcommand\w{0.8}
+\newcommand\h{4.5}
+\tikzset{snake it/.style={decorate, decoration=snake}}
+
+\node (clientbox) [box, yshift=6cm] {$C$};
+
+\node (leaderbox) [box, yshift=6cm, xshift=\w cm] {$L_1$};
+
+\node (replicabox) [box, yshift=6cm, xshift=2*\w cm] {$R_1$};
+
+\node (leaderbox) [box, yshift=6cm, xshift=3*\w cm] {$L_2$};
+
+\node (replicabox) [box, yshift=6cm, xshift=4*\w cm] {$R_2$};
+
+\node (leaderbox) [box, yshift=6cm, xshift=7*\w cm] {$L_N$};
+
+\node (replicabox) [box, yshift=6cm, xshift=8*\w cm] {$R_N$};
+
+% Client
+\draw [stealth-](0,0) -- (0,\h+1);
+
+% L1, R1
+\draw [stealth-](\w,0) -- (\w,\h+1);
+\draw [stealth-](2*\w,0) -- (2*\w,\h+1);
+
+%L2, R2
+\draw [stealth-](3*\w,0) -- (3*\w,\h+1);
+\draw [stealth-](4*\w,0) -- (4*\w,\h+1);
+
+%LN, RN
+\draw [stealth-](7*\w,0) -- (7*\w,\h+1);
+\draw [stealth-](8*\w,0) -- (8*\w,\h+1);
+
+% Left T{
+\draw [decorate,
+    decoration = {brace}] (\w-0.05,-0.15) --  (0,-0.15);
+\node [box, yshift=-0.5cm, xshift=0.5*\w cm] {$T$};
+
+% Right T{
+\draw [decorate,
+    decoration = {brace}] (2*\w,-0.15) --  (\w+0.05,-0.15);
+\node [box, yshift=-0.5cm, xshift=1.5*\w cm] {$T$};
+
+% L2--LN T{
+\draw [decorate,
+    decoration = {brace}] (7.05*\w-0.05,-0.15) --  (3*\w,-0.15);
+\node [box, yshift=-0.5cm, xshift=5*\w cm] {$T$};
+
+% N request messages
+\draw [-stealth](0,\h+0.6) -- node[midway,fill=white]{\footnotesize $R_1$}(\w,\h+0.2);
+\draw [-stealth](0,\h+0.6) to[out=10, in=-200] node[midway,fill=white]{\footnotesize $R_2$} (3*\w,\h+0.2);
+\draw [-stealth](0,\h+0.6) to[out=30, in=-200] node[midway,fill=white]{\footnotesize $R_N$} (7*\w,\h+0.2);
+
+\draw [-stealth](0,\h+0.6) to[out=19, in=-190] (2.3*\w,\h+0.9);
+
+% N paxos round trips
+\draw [-stealth](\w,\h+0.2) -- (2*\w,\h-0.2);
+\draw [-stealth](2*\w,\h-0.2) -- (\w,\h-0.6);
+
+\draw [-stealth](3*\w,\h+0.2) -- (4*\w,\h-0.2);
+\draw [-stealth](4*\w,\h-0.2) -- (3*\w,\h-0.6);
+
+\draw [-stealth](7*\w,\h+0.2) -- (8*\w,\h-0.2);
+\draw [-stealth](8*\w,\h-0.2) -- (7*\w,\h-0.6);
+
+% First CR resp and client response
+\draw[-stealth, dashed] (\w,\h-0.6) -- node[midway,fill=white]{\tiny $Coord_2$}(3*\w,\h-1);
+\draw [-stealth](\w,\h-0.6) -- (0,\h-1);
+
+% second CR resp and client response
+\draw[-stealth, dashed] (3*\w,\h-1) -- node[midway,fill=white]{\tiny $Coord_2$}(5*\w,\h-1.4);
+\draw [-stealth](3*\w,\h-1) -- (0,\h-1.4);
+
+% Nth CR resp and client response
+\draw[-stealth, dashed] (5*\w,\h-2.25) -- node[midway,fill=white]{\tiny $Coord_N$}(7*\w,\h-2.75);
+\draw [-stealth](7*\w,\h-3.55) -- (0,\h-3.95);
+
+% Ellipses
+\draw (5*\w,\h-1.85) node[auto=false]{\ldots};
+\draw (2.35*\w,\h+0.8) node[auto=false]{\ldots};
+%Final Paxos round trip
+\draw [-stealth](7*\w,\h-2.75) -- (8*\w,\h-3.15);
+\draw [-stealth](8*\w,\h-3.15) -- (7*\w,\h-3.55);
+
+% Brackets
+\draw [decorate,
+    decoration = {brace}] (-0.15,\h-0.57) --  (-0.15,\h+0.6);
+\node [box, yshift=\h cm, xshift=-0.7 cm] {$3*T$};
+
+\draw [decorate,
+    decoration = {brace}] (-0.15,\h-2.75) --  (-0.15,\h-0.6);
+\node [box, yshift=0.63*\h cm, xshift=-1.15 cm] {$(N-1)*T$};
+
+\draw [decorate,
+    decoration = {brace}] (-0.15,\h-3.95) --  (-0.15,\h-2.8);
+\node [box, yshift=0.2*\h cm, xshift=-0.7 cm] {$3*T$};
+
+% Horizontal lines
+\draw[dashed] (0,\h+0.2) -- (8*\w,\h+0.2);
+\draw[dashed] (0,\h-0.6) -- (8*\w,\h-0.6);
+\draw[dashed] (0,\h-2.75) -- (8*\w,\h-2.75);
+
+
+\end{tikzpicture}
+\caption{Performance for MDL. Ommitted: Client issued coordination requests and final paxos ordering round trip for all requests except $R_N$ (shown). Since clients can issue multiple outstanding requests, we expect N requests issued to take around $6T + (N-1)*T$ units of time, where $T$ is the latency between servers and $N$ is the number of unique shards across all outstanding requests. In our case we assume this latency is equivalent between clients and leaders, leaders and replicas, as well as leaders to leaders.}
+\label{fig:mdlperf}
+\end{figure}
+
 \subsection{Correctness}
-We give a brief sketch of correctness for \protocol, showing why it guarantees \mdl under no leader failures. The discussion on leader failures follows in section ~\ref{subsec:leaderfailures}. We provide a full proof of correctness in our technical report ~\ref{}.
+We give a brief sketch of correctness for \protocol, showing why it guarantees \mdl. A more detailed discussion on leader failures follows in section ~\ref{subsec:leaderfailures}. We provide a full proof of correctness in our technical report ~\ref{}.
 
 To guarantee \mdl, our protocol must provide a total order of operations that (1) respects per-client invocation order, (2) respects real time, and (3) respects our failure semantics. 
 
-Our use Lamport clocks ~\ref{} helps provide a partial order . Lamport clocks are a mechanism used to order events a and b with a 'happens before' relationship, where a happens before b. Each client request issues a lamport clock after it has been committed and coordinated within a specific epoch of the final log. Inductively, this ensures that all concurrent successors from the same client at possibly different shards carry this invocation order. In other words, our applicaiton of lamport clocks to coordinate successor requests bakes in the invocation order as the happens before relationship. The sorting that occurs within each epoch provides a total order, since any concurrent requests that might form a cycle in the logs of each shard will be sorted into an acyclic total order. Across epochs, the lamport clocks passed among requests are also increased to reflect monotonically increasing epochs, so reqeusts are totally ordered across epochs as well.
+Our coordination request mechanism provides \md's failure semantics and also offers a vehicle to pass along lamport timestamps that can guarantee a safe linearization. Because requests coordinate their successors \textit{after} they themselves are coordinated and committed, the lamport timestamps they send include all causal relationships about requests ordered ahead of them in their log as well as requests invoked earlier by the same client. 
+% Since shard leaders update their global timestamps immediately when requests are committed, coordinated, and added to the ordered log, the timestamps sent to successors also carry execution causal relationships within shards. 
+Inductively, this ensures that all concurrent successors from the same client at possibly different shards carry these log and invocation orderings. Our coordination mechanism is also strong enough to provide real time guarantees.
 
-We provide real time guarantees 
-
-Lastly, our failure semantics are ensured by the coordination mechanism as well. If a request fails, all successors will either be notified of this failure and thus fail themselves and all sucessors, or, if not notifed after a timeout period, they will pessimistically assume a failure and proceed to also fail themselves and their successors. This ensures a suffix closed set of failures, preceeded by a prefix closed set of successes.
-
-% We first show that our protocol provides a total order of operations. To provide \mdl, we must guarantee a total order that also respects per client invocation order. We show this 
-
-% To provide linearizability, we must alos show our protocol respects real time orderings.
-
-% Lastly, we show that our protocol respects our defined failure semantics.
-
+Lastly, coordination requests provide our failure semantics by forwarding information about success and failures. If a request fails, all successors will either be notified of this failure and thus fail themselves and all successors, or, if not notified after a timeout period, they will pessimistically assume a failure and proceed to also fail themselves and their successors. This ensures a suffix closed set of failures, preceeded by a prefix closed set of successes.
 
 \subsection{Leader Failure}
 \label{subsec:leaderfailures}
 To begin, we employ a similar voting mechanism as Raft for selecting the leader from the candidate from the highest term that has the most up-to-date log, where in this case the log is the ordered log of requests that were sorted and executed in prior epochs. This ensures that all committed and executed (and possibly client-externalized) requests are in all future leader logs. Next we describe how buffered requests are safely carried across successive terms with different leaders.
 
-During operation of \protocol, requests can exist in multiple intermediate states. Specifically, a failure could occur after a request has (1) arrived in the buffered map, (2) been committed, (3) received a coordination response from its successor, (4) been added to the execution log (5) coordinated its successor request, (6) been committed in the execution log in this term, (7) been executed, or (8) responded to the client. 
+During operation of \protocol, requests can exist in multiple intermediate states. Specifically, a failure could occur after a request has (1) arrived in the buffered map, (2) been committed, (3) received a coordination response from its predecessor, (4) been added to the execution log (5) coordinated its successor request, (6) been committed in the execution log in this term, (7) been executed, or (8) responded to the client. 
 
 The interesting case to look at is a failure right after point (5). Any request $r$ that has already coordinated a successor request \textit{must} (A) be in the future logs of all leaders, to provide failure semantics, and (B) be placed in the correct order in the log post-failure, to guarantee invocation ordering. These guarantees are less important for requests that have not coordinated a successor since those requests have no impact on successors that might externalize this state, and clients can simply reissue these requests if they fail/are lost. 
 
@@ -341,75 +523,87 @@ Finally, we mention that coordination requests might also be lost in the network
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%% Shard Leader %%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{algorithm}
-    \State $ShardEpoch \gets 0$\\
-    \State $Timer \gets T$\\
-    \State $accepting \gets True$\\
-    \State $bufferedLog \gets []$\\
-    \State $orderedLog \gets []$\\
-    \State $ClientSeqnoMap \gets [][]$\\
-    \Function{\shardMain{}}{
-        \Wait until $Timer = 0$\\
-        $accepting \gets False$\\
-        $batch := []$\\
-        \For{$entry \in bufferedLog$\\}{
-            $entry.epochsSeen\mathrel{+}=1$\\
-            \If{$entry.committed \land entry.coordinated$\\}{
-                %$entry.epoch \gets ShardEpoch$\\
-                $batch\append{entry}$\\
-                $ShardEpoch = Math.max(ShardEpoch, entry.epoch)$\\
-                $bufferedLog\pop(entry)$\\
-            }
-            \ElseIf{$entry.epochsSeen > MAX\_EPOCHS$}{
-                $bufferedLog\pop(entry)$\\
-                $SubmitCRResp(entry, False)$ to $L_{K+1} \in \mathcal{L}$\\
-            }
-        }
-        \sortps{batch}\\
-        $orderedLog\append{batch}$\\
-        $ShardEpoch \mathrel{+}=1$\\
-        \Send $FinalAppendEntries(batch)$ to all $r \in \mathcal{R}$\\
-        %\Wait receive $AppendEntriesSuccess$ from all $r \in Q \in \mathcal{R}$\\
-        %$bufferedLog\popO{}$\\
-        $\executeRetClie{batch}$\\
-        %$\atomicAdd(ShardEpoch, 1)$\\
-        $accepting \gets True$\\
-        $Timer \gets T$\\
-    }
-    \caption{MD-Lin Shard Leader Epoch Handling}
-    \label{shardprotocolmain}
-\end{algorithm}
+% \begin{algorithm}
+%     \State $ShardTS \gets 0$\\
+%     \State $Timer \gets T$\\
+%     \State $accepting \gets True$\\
+%     \State $bufferedMap \gets []$\\
+%     \State $orderedLog \gets []$\\
+%     \State $ClientSeqnoMap \gets [][]$\\
+%     \Function{\shardMain{}}{
+%         \Wait until $Timer = 0$\\
+%         $accepting \gets False$\\
+%         $batch := []$\\
+%         \For{$entry \in bufferedMap$\\}{
+%             $entry.epochsSeen\mathrel{+}=1$\\
+%             \If{$entry.committed \land entry.coordinated$\\}{
+%                 %$entry.epoch \gets ShardTS$\\
+%                 $batch\append{entry}$\\
+%                 $ShardTS = Math.max(ShardTS, entry.epoch)$\\
+%                 $bufferedMap\pop(entry)$\\
+%             }
+%             \ElseIf{$entry.epochsSeen > MAX\_EPOCHS$}{
+%                 $bufferedMap\pop(entry)$\\
+%                 $SubmitCRResp(entry, False)$ to $L_{K+1} \in \mathcal{L}$\\
+%             }
+%         }
+%         \sortps{batch}\\
+%         $orderedLog\append{batch}$\\
+%         $ShardTS \mathrel{+}=1$\\
+%         \Send $FinalAppendEntries(batch)$ to all $r \in \mathcal{R}$\\
+%         %\Wait receive $AppendEntriesSuccess$ from all $r \in Q \in \mathcal{R}$\\
+%         %$bufferedMap\popO{}$\\
+%         $\executeRetClie{batch}$\\
+%         %$\atomicAdd(ShardTS, 1)$\\
+%         $accepting \gets True$\\
+%         $Timer \gets T$\\
+%     }
+%     \caption{MD-Lin Shard Leader Epoch Handling}
+%     \label{shardprotocolmain}
+% \end{algorithm}
 \begin{algorithm}
     \Function{\leaderSubmit{Op, K, V, P, s}}{
         \If{$ClientSeqnoMap[P] \neq s$}{
-            $buffer_{P}(\{Op, K, V, P, s, bd\})$\\
+            $buffer_{P}(\{Op, K, V, P, s\})$\\
             \algorithmiccomment{Buffer per-client out of order requests}\\
             \Return\\
         }
         \Wait until $accepting = True$\\
-        $sentEntries := []$\\
         \algorithmiccomment{Issue this op}\\
-        $bufferedLog\append{(Op, K, V, P, s)}$\\
+        $bufferedMap\append{(Op, K, V, P, s, 0)}$\\
         $ClientSeqnoMap[P]\mathrel{+}=1$\\
-        \Send $AppendEntries(Op, K, V, P, s)$ to all $r \in \mathcal{R}$\\
-        $sentEntries\append{(Op, K, V, P, s)}$\\
+        \Send $Accept(Op, K, V, P, s)$ to all $r \in \mathcal{R}$\\
         \For{$(Op, K, V, P, s) \in buffer_{P}$}{
         \algorithmiccomment{Issue OoO buffered ops that are now ready}\\
             \If{$ClientSeqnoMap[P] = s$}{
-                $bufferedLog\append{(Op, K, V, P, s)}$\\
+                $bufferedMap\append{(Op, K, V, P, s, 0)}$\\
                 $ClientSeqnoMap[P]\mathrel{+}=1$\\
-                \Send $AppendEntries(Op, K, V, P, s)$ to all $r \in \mathcal{R}$\\
-                $sentEntries\append{(Op, K, V, P, s)}$\\
-            }
-        }
-        \For{$entry \in sentEntries$}{
-            \Wait receive $AppendEntriesSuccess$ from all $r \in Q \in \mathcal{R}$\\
-            $entry.committed \gets True$\\
-            \If{$entry.committed \land entry.coordinated$\\}{
-                $SubmitCRResp(entry, True, entry.epoch+1)$ to $L_{K+1} \in \mathcal{L}$\\
+                \Send $Accept(Op, K, V, P, s)$ to all $r \in \mathcal{R}$\\
             }
         }
     }
+    \Function{\leaderHandleAccept{req}}{
+        $req.acks\mathrel{+}=1$\\
+        \If{$req.acks \ge |Q|$} {
+             $req.committed \gets True$\\
+        }
+        \If{$req.committed \land req.coordinated$}{
+            $req.ts := \max(req.ts+1, ShardTS)$\\
+            $ShardTS := \max(req.ts, ShardTS)+1$\\
+            $SubmitCRResp(req.succrq, True, req.ts)$ to $L_{K+1} \in \mathcal{L}$\\
+            $bufferedMap\pop(req)$\\
+            $orderedLog\append{req}$\\
+            \Send $FinalAccept(req)$ to all $r \in \mathcal{R}$\\            
+        }
+    }
+    \Function{\leaderHandleFinalAccept{req}}{
+        $req.facks\mathrel{+}=1$\\
+        \If{$req.facks \ge |Q|$}{
+            $v := \execute{req}$\\
+            $SubmitOpReply(req, v)$ to $client$\\
+            \Send $Commit(req)$ to all $r \in \mathcal{R}$\\
+        }
+    }   
     \caption{MD-Lin Shard Leader Communication}
     \label{shardprotocolmessages}
 \end{algorithm}
@@ -418,28 +612,35 @@ Finally, we mention that coordination requests might also be lost in the network
     \algorithmiccomment{Received CR from client of succrq}\\
         $rq.succrq := succrq$\\
         \If{$entry := orderedLog\find{rq} \neq NULL$}{
-            $SubmitCRResp(succrq, True, entry.epoch+1)$ to $L_{K+1} \in \mathcal{L}$\\
+            $SubmitCRResp(succrq, True, entry.ts)$ to $L_{K+1} \in \mathcal{L}$\\
             \Return\\
         }
-        \Wait $entry := bufferedLog\find{rq} \neq NULL$\\
-        \Wait $(entry.committed \land entry.coordinated) \lor bufferedLog\find{rq} = NULL$\\
+        \Wait $entry := bufferedMap\find{rq} \neq NULL$\\
+        \Wait $(entry.committed \land entry.coordinated) \lor bufferedMap\find{rq} = NULL$\\
         \If{$entry.committed \land entry.coordinated$}{
-            $SubmitCRResp(succrq, True, entry.epoch+1)$ to $L_{K+1} \in \mathcal{L}$\\
+            $SubmitCRResp(succrq, True, entry.ts)$ to $L_{K+1} \in \mathcal{L}$\\
         }
         \Else{
             $SubmitCRResp(succrq, False, -1)$ to $L_{K+1} \in \mathcal{L}$\\
         }        
     }
-    \Function{\CRReply{rq, v, ep}}{
+    \Function{\CRReply{req, v, ts}}{
         
         \If{$v = True$}{
-            \Wait $entry := bufferedLog\find{rq} \neq NULL$\\
-            $entry.committed \gets True$\\
-            $entry.epoch \gets max(ShardEpoch, ep)$\\
-            $SubmitCRResp(entry.succrq, True, entry.epoch+1)$ to $L_{K+1} \in \mathcal{L}$\\
+            % \Wait $entry := bufferedMap\find{rq} \neq NULL$\\
+            $req.coordinated \gets True$\\
+            $req.ts = ts$\\
+            \If{$req.committed \land req.coordinated$}{
+                $req.ts := \max(req.ts+1, ShardTS)$\\
+                $ShardTS := \max(req.ts, ShardTS)+1$\\
+                $SubmitCRResp(req.succrq, True, req.ts)$ to $L_{K+1} \in \mathcal{L}$\\
+                $bufferedMap\pop(req)$\\
+                $orderedLog\append{req}$\\
+                \Send $FinalAccept(req)$ to all $r \in \mathcal{R}$\\            
+            }
         }
         \Else{
-            $bufferedLog\pop(rq)$\\
+            $bufferedMap\pop(rq)$\\
             $SubmitCRResp(rq.succrq, False, -1)$ to $L_{K+1} \in \mathcal{L}$\\
         }
     
