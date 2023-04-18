@@ -3,16 +3,16 @@
 
 In this section, we define \multidispatch{} linearizability and show how
 applications can be transformed to reap the performance benefits it offers while appearing to behave identically to users.
-We first describe our model of distributed applications
+We first describe our model of distributed applications and systems
 (\S\ref{sec:mdl:applications} and \S\ref{sec:mdl:systems}).
 We then define \MDL{} (\S\ref{sec:mdl:def}). We conclude with a description
-of how to transform applications and prove our equivalence results
+of how to transform applications and prove our equivalence result
 (\S\ref{sec:mdl:equivalence}).
 
 \subsection{Users, Applications, \& Executions}
 \label{sec:mdl:applications}
 
-We leverage the formalism used in Helt et al.~\cite{helt2021rss}. We model a
+We leverage the formalism used in \citeauthor{helt2021rss}~\cite{helt2021rss}. We model a
 distributed \textit{application} as a set of $n$ \textit{processes}.
 Processes are state machines~\cite{lynch1987ioa,lynch1996da}
 that implement application logic by receiving messages from and sending replies
@@ -22,18 +22,18 @@ messages, and invoking operations on \textit{systems}.
 An application's processes define a prefix-closed set of \textit{executions},
 which are sequences $s_0,\pi_1,s_1,\ldots$ of alternating \textit{states} and
 \textit{actions}, starting and ending with a state. An application's state
-is an $n$-length vector containing that state of each process.
+is an $n$-length vector containing the state of each process.
 
 Each action is a step taken by exactly one process and is one of three types:
 \textit{internal}, \textit{input}, or \textit{output}. Internal actions model
 local computation. Processes use input and output actions to interact with
 users (e.g., responding to an HTTP request) and other
-processes (e.g., receiving and replying to a remote procedure call).
+processes (e.g., receiving a remote procedure call).
 As we describe in the next section, a subset of the input and output actions
 are \textit{system-facing} \textit{invocations} and \textit{responses}, 
 respectively.
 
-Processes send and receive messages one another via unidirectional
+Processes send and receive messages to one another via unidirectional
 channels. To send a message to process $P_j$, $P_i$ uses two
 actions: first, $P_i$ uses an output action $\sendto_{ij}(m)$
 and later, an input action $\sent_{ij}$ occurs, signaling $m$'s 
@@ -42,8 +42,8 @@ uses an output action $\request_{ij}$ and later, an input action
 $\receive_{ij}(m)$ occurs, signaling the receipt of $m$.
 
 We assume users interact with processes through similar such channels. This
-allows our formalism to model both where human users interact with
-directly with the application but also where one application is the client
+allows our formalism to model scenarios both where human users interact with
+directly with the application and where one application is the client
 of another, as common in data centers~\cite{veeraraghavan2016kraken,schwarzkopf2018operating}.
 In the latter case, however, we assume users do not interact directly with the back-end system (defined below).
 
@@ -51,9 +51,9 @@ Given an execution $\alpha$, we will often refer to an individual process's
 \textit{sub-execution}, denoted $\alpha|P_i$. $\alpha|P_i$ comprises
 only $P_i$'s actions and the $i$th component of each state in $\alpha$.
 In a slight abuse of notation, we use $\alpha|U$ to denote the sub-sequence
-of only user-facing external actions in $\alpha$. 
+of only \textit{user-facing} external actions in $\alpha$. 
 
-\noindentparagraph{Well-formed.} An execution is \textit{well-formed} if it
+\noindentparagraph{Well-formed.} A \textit{well-formed} execution
 satisfies the following: (1) Messages are sent before they are received; and
 (2) While processes may have multiple outstanding $\request_{ij}$ actions
 (at one or more channels) or invocations (at the system), they may not have
@@ -63,21 +63,20 @@ executions.
 \subsection{Systems}
 \label{sec:mdl:systems}
 
-Application processes interact with a back-end \textit{system} (e.g., a database),
+Application processes interact with a back-end \textit{system} (e.g., a database or key-value store),
 which is defined by its \textit{operations} and a
 \textit{specification}~\cite{herlihy1990linearizability,lynch1996da}. An
 \textit{operation} comprises pairs of \textit{invocations}, specifying the
 operation's arguments, and matching \textit{responses}, containing
 return values. The specification is a prefix-closed set of sequences of
 invocation-response pairs defining the system's correct behavior in the absence
-of concurrency. A sequence $S$ in specification $\spec$ defines a total order
+of concurrency. A sequence $S$ in a specification $\spec$ defines a total order
 over its operations, denoted $<_S$.
 
 \subsection{Definition}
 \label{sec:mdl:def}
 
-Given the formal model above, we can now define our new consistency model.
-
+We are now ready to define our new consistency model.
 Given an execution $\alpha$, we say an
 operation is \textit{complete} if its invocation has a matching response in
 $\alpha$. We denote $\complete(\alpha)$ as the maximal subsequence of $\alpha$
@@ -100,10 +99,10 @@ We can also lift $\rt_\alpha$ to operations in the natural
 way.
 
 \noindentparagraph{\Multidispatch{} Linearizability.} An execution $\alpha_1$ satisfies \textit{\multidispatch{} linearizability (\MDL{})} if it
-can be extended by adding zero or more responses to create $\alpha_2$ such that
+can be extended, by adding zero or more responses, to create $\alpha_2$ such that
 there exists a sequence $S \in \spec$ where (1) for all $P$,
-$S|P = \complete(\alpha_2)||P$; and (2) for all pairs of operations
-$o_1,o_2$, $o_1 \rt_{\alpha_1} o_2 \implies o_1 <_S o_2$.
+$S|P = \complete(\alpha_2)||P$, and (2) for all pairs of operations
+$o_1$ and $o_2$, $o_1 \rt_{\alpha_1} o_2 \implies o_1 <_S o_2$.
 
 In plain language, an \MDL{} system guarantees it reflects a total order 
 over operations. This order is constrained in two ways: First,
@@ -141,33 +140,33 @@ present a condensed form of the proof that the transformation preserves external
 equivalence. For ease of exposition, we focus on the actions within an
 execution and assume states can be modified and reordered as needed.
 
-\subsubsection{Parallelizing $\mathbf{A}$}
+\subsubsection{Parallelizing an Application}
 \label{sec:mdl:transform}
 
 We describe how to transform an application $A$ that is built to
 interact with a linearizable system to produce a new application
-$A^\prime = \transform(A)$ that can interact with an \MDL{} system.
+$A^\prime = \transform(A)$ that can interact with a comparable \MDL{} system.
 We attempt to describe this transformation in generic terms, independent of any particular programming language.
 
 The first step is to replace synchronous, system-facing I/O with
-futures~\cite{futures}. This allows operation invocations and responses
+futures. This allows operation invocations and responses
 to be reordered in $A$ with respect to other actions (i.e., instructions).
 The aim is to then move operation invocations earlier such that the application
 can issue multiple operations concurrently and reap the performance benefits 
 of an \MDL{} system.
 
 To produce the new application $A^\prime$, we then move actions in $A$ before prior 
-actions provided the following rules hold:
-\textbf{(R1)} $A^\prime$ maintains the order of data-dependent actions within
-each process of $A$;
-\textbf{(R2)} $A^\prime$ maintains the control flow of each process in $A$;
-\textbf{(R3)} $A^\prime$ maintains the issue-order of $A$'s operations;
-\textbf{(R4)} $A^\prime$ maintains the order of non-system-facing external
-actions in $A$, including messages to users and to between application processes;
-\textbf{(R5)} $A^\prime$ maintains the order between a non-system-facing external 
+actions provided $A^\prime$ maintains the following:
+\textbf{(R1)} the order of data-dependent actions within
+each process of $A$,
+\textbf{(R2)} the control flow of each process in $A$,
+\textbf{(R3)} the issue order of $A$'s operations,
+\textbf{(R4)} the order of non-system-facing external
+actions in $A$, including messages to/from users and between processes,
+\textbf{(R5)} the order between a non-system-facing external 
 actions and operation invocations (in particular, the first invocation in a
-sequence of operations); and
-\textbf{(R6)} $A^\prime$ similar maintains the order between non-system-facing external actions and operation response (e.g., by waiting for the responses of any outstanding operations before sending a message to a user).
+sequence of operations), and
+\textbf{(R6)} the order between non-system-facing external actions and operation responses (e.g., by waiting for the successful responses of any outstanding operations before sending a message to a user).
 
 \subsubsection{Proof of External Equivalence}
 
@@ -180,14 +179,14 @@ Let $A$ be an application designed to interact with a linearizable system,
 and let $A^\prime = \transform(A)$ be the transformed application. Suppose
 $\alpha^\prime$ is an execution of $A^\prime$ that satisfies
 \MDL{}. Then there is an externally equivalent execution $\beta$
-of $A$ that satisfies \SDL{}.
+of $A$ that satisfies linearizability.
 \end{thm}
 
 \begin{proof}
 The proof proceeds in steps: First, we create an execution $\alpha$ from
 $\alpha^\prime$ by essentially undoing the parallelizing transformation in
 each process's sub-execution. Second, we produce $\beta$ by fixing the order
-of actions across processes to ensure $\beta$ is well-formed and satisfies \SDL{}.
+of actions across processes to ensure $\beta$ is well-formed and satisfies linearizability.
 
 By the assumption that $A$ is well-formed and the rules of $\transform$,
 each $\alpha^\prime | P_i$ comprises sub-sequences of local and
@@ -206,8 +205,9 @@ order requires it. Let $\alpha^\prime$ be the resulting execution.
 By the observation about each $\alpha^\prime | P_i$ above, the order of
 non-system-facing external actions in $\alpha$ respects $A$'s program order
 (because $A^\prime$'s is identical). Further, each $\alpha | P_i$ now
-issues its operations sequentially (since $A$'s program order mandates
-requires it).
+issues its operations sequentially (since $A$'s program order requires it).
+Lastly, by \MDL{}'s suffix-closed failure semantics, all of a process's 
+completed operations precede any failed ones.
 
 The execution $\alpha$, however, may not satisfy linearizability. We remedy this
 and produce the needed $\beta$. To do so, first recall that by assumption the 
@@ -272,7 +272,8 @@ a contradiction.
 Second, assume the cycle contains at least one $\prec_U$ edge. Then the cycle can be
 written as
 $\pi_1 \prec_U \pi_2 \prec_{\alpha} \ldots \prec_{\alpha} \pi_n \prec_{\alpha} \pi_1$. By the definition of $<_U$, clearly $\pi_1$ precedes $\pi_2$ in $\alpha$.
-Further, since users interact with processes using channels, we can use the same
+Further, since users interact with processes using channels, $\pi_2$ and
+$\pi_n$ are either receive-from or send-to action, so we can use the same
 reasoning as above to conclude $\pi_2$ precedes $\pi_1$ in $\alpha$, again a
 contradiction. 
 
@@ -288,14 +289,14 @@ By definition of $\prec_{P_i}$, $\pi_i$ precedes $\pi_{i+1}$ in $\alpha | P_i$.
 Since each process’s system interactions occur sequentially in $\alpha$,
 $\pi_{i}$ must also precede $\pi_{i+1}$'s corresponding invocation.
 Since the transformation between $A$ and $A^\prime$ preserves each process’s
-invocation order (and so MDL does), this implies $\op(\pi_{i})$ is ordered in $S$
+invocation order (as does MDL), this implies $\op(\pi_{i})$ is ordered in $S$
 before $\op(\pi_{i+1})$.
 
 As a result, for each $\pi_i \prec_{P_i} \pi_{i+1}$ in our cycle, we can replace it
 with a sequence of $\prec_{P_i}$ and $\prec_S$ edges that includes the invocations 
 and responses of all operations in $S$ between $\op(\pi_i)$ and $\op(\pi_{i+1})$
 (if any). This (no longer shortest) cycle implies there is a cycle over operations 
-in $S$. But this contradicts the definition of $S$, which \MDL{} guarantees is a 
+in $S$. But this contradicts the definition of $S$, which is a 
 total order. Thus, $\prec_{\alpha}$ is acyclic. Combined with the
 definitions of $\prec_M$, $\prec_{P_i}$, $\prec_U$, and $\prec_S$, this also
 shows it is irreflexive.
