@@ -39,7 +39,7 @@ We argue these make it a natural and elegant extension of Linearizability for mu
 %** In turn, this formal model allow us to study \mdl\\
 
 New consistency models typically require programmers learn about a new set of potential behaviors from a system and learn how to reason about them correctly.
-Instead of requiring this heavy lift from programmers, we allow them to instead reason about Linearizability, which they are familiar with and that is relatively simple to reason about.
+Instead of requiring this heavy lift from programmers, we allow them to instead reason about Linearizability, which they are familiar with and which is relatively simple to reason about.
 This is possible because we identify a sufficient set of conditions for transforming a single-dispatch program, $A$, into a multi-dispatch program $A^\prime$ that we prove is \textit{externally equivalent} to $A$, i.e., external observers cannot tell the difference between $A$ running on a (single-dispatch) Linearizable system and a $A^\prime$ running on a
 comparable \mdl{} system.
 Thus programmers can specify and reason about their program as they currently do and then apply our simple transformations to take advantage of the latency benefits of \mdl{} while knowing their program will behave in the same way.
@@ -55,9 +55,9 @@ and
 
 We present \sys{}, the first protocol to achieve all of these and thus
 provide multi-shard \mdl{}.
-\sys{} includes two phases: a parallel fault-tolerance phase and then a sequential coordination phase.
-In the fault tolerance phase, operations are replicated via Raft~\cite{ongaro2014raft} as soon as they arrive at their relevant shards.
-In the coordination phase, operations are coordinated and then executed by the shards \textit{after} a client's previous operation via `coordination operation' messages that are sent directly from shard to shard.
+\sys{} includes two phases: a parallel fault-tolerance phase followed by a sequential coordination phase.
+In the fault tolerance phase, operations are replicated via Paxos~\cite{lamport1998paxos} as soon as they arrive at their relevant shards.
+In the coordination phase, operations are coordinated and then executed by the shards. An operation is coordinated by the same client's previous operation via coordination requests that are sent directly from shard to shard.
 This sequential coordination is key to enforcing both the client issue order and the suffix-complete failure semantics:
 a client's later operation will only be ordered and thus executed if the preceding operation has been successfully replicated and coordinated.
 
