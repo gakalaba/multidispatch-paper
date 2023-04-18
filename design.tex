@@ -45,21 +45,31 @@ first giving a high-level overview of the protocol, why it provides \mdl{}, and 
 Then we go over the details of \sys{} including
 its full protocol that decouples fault tolerance and ordering,
 its special recovery protocol that runs when a shard leader fails,
-and why it is correct. We include a full proof of correctness in our technical report.
+and why it is correct.
 
 
 \paragraph{\sys{} overview.}
-At a high-level, the \sys{} protocol has three phases for each set of concurrent operations from a client:
-parallel replication for fault tolerance,
-sequential coordination,
-and then parallel replication of ordering.
-The initial parallel replication occurs before coordination and guarantees an operation will eventually be executed.
-This happening before coordination is what enables \sys{} to provide suffix-closed failure semantics.
-The sequential coordination ensures the legal total order across shards and client issue order required by \mdl{} will exist.
-Coordination is not replicated and requires at most only a single sequential shard-to-shard message for each concurrent operation, which is what enables \sys{} to provide lower latency.
-Not replicating coordination is safe because of our recovery protocol that allows us to safely redo coordination for committed-but-not-ordered operations.
-Finally, the parallel replication of ordering ensures the durability of ordering information before execution.
+The key insight in \sys{} is to decouple fault-tolerance from ordering, allowing
+parallelization of most processing of concurrent operations. To this end, the
+\sys{} protocol has three phases for each set of concurrent operations from a
+client: parallel replication for fault tolerance, sequential coordination, and
+then parallel replication of ordering.  The initial parallel replication occurs
+before coordination and guarantees an operation will eventually be executed.
+This happening before coordination is what enables \sys{} to provide
+suffix-closed failure semantics.  The sequential coordination ensures the legal
+total order across shards and client issue order required by \mdl{} will exist.
+Coordination is not replicated and requires at most only a single sequential
+shard-to-shard message for each concurrent operation, which is what enables
+\sys{} to provide lower latency.  Eliding replication for coordination is safe
+because our recovery protocol allows us to safely redo coordination for
+committed-but-not-ordered operations in case of leader failure.  Finally,
+replicating ordering in parallel ensures ordering information is durable before
+execution.
 
+\al{it would be nice to capture consicely here that the ordering before recovery
+may be different after recovery, which is why we need to replicate ordering
+before execution, but that that's ok but recovery ensures the order chosen will
+respect all constraints on the total order}
 
 % * provides mdl across shards\\
 %* tolerates f crash failures per shard with 2f+1 replicas\\
@@ -67,8 +77,8 @@ Finally, the parallel replication of ordering ensures the durability of ordering
 %* does so with end-to-end app latency much lower that a similar sdl design: roughly 1/4 the latency\\
 
 
-\subsection{\sys{}}
-This subsection details the design of \sys{}.
+\subsection{Protocol}
+This subsection details the \sys{} protocol.
 It starts by going over the components and stepping through the protocol.
 Then it discusses how the design achieves each of the following goals:
 suffix-closed failure semantics,
@@ -85,10 +95,13 @@ and the shards maintain a pending set, ordered log, and shard\_ts?}
 The client interface presented by the client-library is a key-value store where arbitrary deterministic operations---e.g., read, write, read-modify-write---on a specified key are invoked immediately and return a future.
 This asynchronous interface allows a client to dispatch many operations in parallel.
 
-When the client invokes the client-library it checks if there are any outstanding operations.
-If there are none, the client sends an operation to the leader of the appropriate shard along with a \texttt{null} \textit{predecessor} id.
-If there are outstanding operations, the client sends an operation to the leader of the appropriate shard along with a \textit{predecessor} id that identifies the most recently-issued operation.
-In addition, when there are outstanding operations, the client sends a coordination request message to the shard leader for the predecessor operation that indicates this operation as its \textit{successor}.
+When the client invokes an operation, the client-library checks if there are any
+outstanding operations.  The library sends the operation to the leader of the
+appropriate shard along with a \textit{predecessor} id that identifies the most
+recently-issued operation, or \texttt{null} if there is none.  In addition, when
+there are outstanding operations, the client sends a coordination request
+message to the shard leader for the predecessor operation that indicates this
+operation as its \textit{successor}.
 
 \wl{fix up shard leader vs server}
 
@@ -99,8 +112,6 @@ In addition, when there are outstanding operations, the client sends a coordinat
 %% or committed, operations in \sys{} proceed through the following four
 %% states:
 
-\wl{make sure we have the key insight appear somewhere about decoupling...}
-
 % \wl{``To do so, each shard shard maintains a \texttt{next\_ts} integer, initially zero, that is advanced whenever
 % an operation is replicated and coordinated and at the end of each epoch. Upon arriving at a shard, an operation
 % sets its tentative timestamp as the current value of \texttt{next\_ts}. An operation's timestamp is then
@@ -109,23 +120,24 @@ In addition, when there are outstanding operations, the client sends a coordinat
 % of their predecessor. At the end of an epoch \texttt{next\_ts} is advanced to be strictly greater than the last
 % operation in the epoch.''}
 
-When a shard leader receives an operation it starts processing the operation, which will take it through four states:
+Operations at a shard go through four states:
 \textit{pending},
 \textit{committed},
 \textit{coordinated},
 and
 \textit{ordered}.
-When an operation arrives at a shard leader, it is \textit{pending} and it is added to the set of pending operations.
-The leader replicates the operation to its replicas and once it receives a quorum of acknowledgements,
+When an operation first arrives at a shard leader, it is \textit{pending} and it is added to the set of pending operations.
+The leader replicates the operation to its replicas, and once it receives a quorum of acknowledgements,
 the operation is \textit{committed}.
 Our protocol guarantees that a committed operation is eventually executed.
 If this operation has a \texttt{null} predecessor it is immediately marked as \textit{coordinated}.
 If this operation has a predecessor, then the leader waits until it receives the coordinate reply message from the predecessor to mark it as coordinated.
 Once an operation is coordinated, it checks if it has received a coordination request, and if so immediately sends a coordination reply to the leader for \textit{its} successor operation.
 
-Once an operation is marked coordinated the leader places the operation into the next available instance in its ordered log and removes it from the pending set.
-It then replicates this ordering to its replicas and once it receives a quorum of acknowledgements,
-the operation is \textit{ordered}.
+Once an operation is marked coordinated the leader moves it from the pending set
+into the next available instance in its ordered log.  It then replicates this
+ordering to its replicas and, once it receives a quorum of acknowledgements, the
+operation is \textit{ordered}.
 The leader (and replicas) then execute operations in the order of the ordered log, i.e., an operation is executed as soon as it is ordered and the previous operation in the ordered log has been executed.
 
 Replication for each shard is done following the standard Multi-Paxos protocol, which tolerates $f$ crash failures with $2f+1$ replicas.
@@ -136,15 +148,15 @@ Conversely, when a leader receives a coordination request for an operation it al
 
 \paragraph{Suffix-closed failures.}
 \Mdl{} requires that if a client operation fails then all concurrent, but later issued operations fail.
-\sys{} ensures such suffix-closed failures using coordinate replies that are only sent after an operation is committed and coordination.
-Ordering coordination replies after this operation is committed ensures this operation will be executed, either by the current leader in the normal case or by a new leader in the case of failover.
-Ordering coordination replies after this operation is coordinated ensures this is transitively true for all of a client's earlier-issued concurrent operations.
-For instance, if a client issues $o_1$, $o_2$, and then $o_3$, then $o_3$ can only be coordinated after $o_2$ is coordinated, which can only be after $o_1$ is coordinated.
-In turn, this means that all of $o_1$--$o_3$ were also committed and thus will eventually be executed.
+\sys{} ensures such suffix-closed failures using coordinate replies that are only sent after an operation is committed and coordinated.
+Ordering coordination replies after an operation is committed ensures the operation will be executed, either by the current leader in the normal case or by a new leader in the case of failover.
+Ordering coordination replies after an operation is coordinated ensures this is transitively true for all of a client's earlier-issued concurrent operations.
+For instance, if a client issues $o_1$, then $o_2$, then $o_3$, $o_3$ can only be coordinated after $o_2$ is coordinated, which can only be after $o_1$ is coordinated.
+In turn, this means that $o_1$--$o_3$ were also committed and thus will eventually be executed.
 Transitioning to the coordinated state is thus the point where an operation will eventually succeed.
 
 Prior to this transition, an operation may fail for two reasons.
-First, an operation will fail if it times out waiting for its coordination reply from its predecessor.
+First, an operation will fail if it times out waiting for a coordination reply from its predecessor.
 This can be triggered when the predecessor operation never arrives--e.g., the predecessor operation was dropped by the network and then the client machine failed so it cannot retransmit it.
 Second, an operation will fail if it receives a special fail\_coordination reply instead of a success\_coordination reply.
 In both cases, once an operation is failed the shard replies to the client with the failure.
@@ -153,7 +165,7 @@ In addition, the shard sends a fail\_coordination message to its successor opera
 
 
 \paragraph{\Mdl{} ordering.}
-\Mdl{} requires there exists a legal total order over all operations that respects the real-time order and the client issue order.
+\Mdl{} requires there exist a legal total order over all operations that respects real-time order and each client's issue order.
 \sys{} ensures such an order exists through coordinate message that orchestrate the coordination and thus execution of operations around shards.
 
 Execution on each shard is sequential, providing a legal total order for all operations on each shard.
@@ -161,8 +173,7 @@ That order respects the real-time ordering constraints because of the normal gua
 What is necessary then is to be able to show that the combination of all per-shard orderings and per-client issue ordering has a legal total order.
 This is true if and only if the ordering constraints are acyclic.
 The coordination messages ensure the constraints are acyclic by ensuring operations move to the coordinated state, and are thus added to each shard's ordered log, in their issue order.
-This makes the two orders compatible: if $o_m$ is issue-ordered before $o_n$ by a client, then $o_m$ will be added to its shard's ordered log before $o_n$ is.
-\wl{This intutition should be better...}
+This makes the two orders compatible: if $o_1$ is issue-ordered before $o_2$ by a client, then $o_1$ will be added to its shard's ordered log before $o_2$ is.
 
 For example, consider a simple execution where client 1 issues $o_{a1}$ to shard A and then $o_{b2}$ to shard B and where client 2 issues $o_{b3}$ to shard B and then $o_{a4}$ to shard A.
 Three out of four possible orderings of these operations are acyclic and thus \mdl{},
@@ -173,22 +184,37 @@ This interleaving creates a cycle where $o_{a4}$ is before $o_{a1}$ on shard A, 
 Our coordination messages preclude this cycle by controlling when operations are added to ordered logs.
 In this case, they would ensure $o_{a4}$ is only added to the ordered log at shard A after $o_{b3}$ is added to the ordered log at shard B, which is after $o_{b2}$ is added to the ordered log in this example, which in turn was only added after $o_{a1}$ was added to the ordered log at shard A.
 
+A complete proof that \sys{} provides \Mdl{} ordering is elided for brevity.
+
 
 %\subsubsection{Operation vs.\@ End-To-End Latency}
 \paragraph{Operation vs.\@ end-to-end latency.}
-Multi-Paxos provides \sdl{} with a single round of replication for both fault tolerance and ordering.
-\sys{}, in contrast, decouples replication for fault tolerance and ordering into two rounds.
-This increases the latency of \textit{individual} operations, but allows \sys{} to do each round of replication for all of a client's concurrent operations in parallel.
-The only part of its protocol that is sequential are the coordination messages.
-The coordination requests are sent by the client-library and the coordination replies are sent from shard to shard.
-This puts only a single shard-to-shard message in the sequential critical path of many concurrent client operations. \ak{This is not true... it puts i-1 shard-to-shard messages in the sequential critical path of the ith request... it is overlapped with its replication but its' not a single shard-to-shard message}.
+Multi-Paxos provides \sdl{} with a single round of replication for both fault
+tolerance and ordering.  \sys{}, in contrast, decouples replication for fault
+tolerance and ordering into two rounds.  This increases the latency of
+\textit{individual} operations, but allows \sys{} to do each round of
+replication for all of a client's concurrent operations in parallel.  The only
+part of its protocol that is sequential are the coordination messages.  The
+coordination requests are sent by the client-library and the coordination
+replies are sent from shard to shard.  This puts at most a single shard-to-shard
+message per operation in the sequential critical path of many concurrent client
+operations. Moreover, these coordination messages may overlap with the second
+round of replication.
 
-Figures~\ref{fig:sdlperf} and~\ref{fig:mdlperf} compare the performance of Multi-Paxos with sequentially issued oprations and \sys{}.
-The performance depends on the number of concurrent client requests in the execution of an application operation as well as the number of distinct physical shards those requests are sent to.
-Let $T$ be the one-way delay between machines.
-When there are $N$ (potentially) concurrent client requests, Multi-Paxos's latency is $4*T*N$
-while \sys{}'s latency is $6T + (N-1)*T$ in the worst case when each request lies at a different physical shard than its predecessor.
-Thus, while the latency of an individual operation is higher in \sys{}, an application's worst-case end-to-end latency approaches $1/4$ that of Multi-Paxos as the number of concurrent client requests grows. We specify worst case performance here since the coordination overhead for two consecutively issued concurrent requests that lay at the same shard is negligible, as it does not require a shard-to-shard 1-way trip.
+Figures~\ref{fig:sdlperf} and~\ref{fig:mdlperf} compare the performance of
+Multi-Paxos with sequentially issued operations and \sys{}.  The performance
+depends on the number of concurrent client requests in the execution of an
+application operation as well as the number of distinct physical shards those
+requests are sent to.  Let $T$ be the one-way delay between machines (clients,
+leaders, and replicas).  When there are $N$ (potentially) concurrent client
+requests, Multi-Paxos's latency is $4*T*N$ while \sys{}'s latency is
+$6T + (N-1)*T$ in the worst case when each request lies at a different shard
+than its predecessor.  Thus, while the latency of an individual operation is
+higher in \sys{}, an application's worst-case end-to-end latency approaches
+$1/4$ that of Multi-Paxos as the number of concurrent client requests grows. We
+specify worst case performance here since the coordination overhead for two
+consecutively issued concurrent requests that lay at the same shard is
+negligible, as it does not require a cross-shard message.
 
 %% As a result, a client's end-to-end application latency when using \sys{} scales by a factor
 %% of the one-way cross-shard latency as the number of operations increases. In contrast,
@@ -509,7 +535,7 @@ Thus, while the latency of an individual operation is higher in \sys{}, an appli
 \subsection{Shard Leader Failover}
 \label{subsec:leaderfailures}
 Each shard is made fault tolerant to $f$ failures with $2f+1$ replicas running Multi-Paxos~\cite{lamport1998paxos}.
-When a shard leader fails (or appears to fail), we call it the \textit{old leader}, and it is replaced by a \textit{new leader}.
+When a shard leader fails (or appears to fail), we call it the \textit{old leader}, and its replacement the \textit{new leader}.
 Before processing any new operations the new leader runs a recovery protocol that allows us to safely (re)coordinate committed operations that have not been ordered.
 This is what enables \sys{} to safely avoid replication being on-path between coordination replies, which keeps latency lower.
 
@@ -517,14 +543,14 @@ The recovery protocol first has the new leader ensure it has a complete, up-to-d
 it sends a request to the other replicas for entries in their ordered log,
 once it has a quorum of replies it updates its ordered log to include any entries that other replicas have marked as accepted,
 and then it finishes the protocol for those entries by sending accept messages to the replicas with them.\footnote{We elide details related to ballot numbers due to space constraints and because they are the same as in Multi-Paxos.}
-This ensures that any ordered log entry the old leader could have executed and externalized will be in the new leader's ordered log:
-an operation can only be executed after it is committed to the ordered log,
-which only happens after it is accepted by a majority of replicas,
-which ensures it will be seen and added to the ordered log of the new leader.
+This ensures that any ordered log entry the old leader could have executed and externalized will be in the new leader's ordered log.
+An operation can only be executed after it is committed to the ordered log,
+which only happens after it is accepted by a majority of replicas. In turn, this
+ensures it will be seen and added to the ordered log of the new leader.
 
 Ongoing operations can be in one of the four states: pending, committed, coordinated, or ordered.
 Operations that are pending are equivalent to the network dropping the packet to the old leader and will be retried by the client.
-Operations that are ordered already will be added to the ordered log of the new leader as discussed above.
+Operations that are ordered will be added to the ordered log of the new leader as discussed above.
 This leaves operations that are committed and potentially also coordinated.
 We do not replicate the coordination status of an operation to minimize the number of messages that are sequential for concurrent client requests.
 Thus, we need to assume that any committed operation could have been coordinated.
