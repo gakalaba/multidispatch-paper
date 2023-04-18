@@ -89,18 +89,15 @@ But, they unlock parallelism that yields lower end-to-end application latency as
 
 To demonstrate the performance benefits offered by \MDL{},
 we implement and evaluate \sys{} in a data center environment.
-Compared to multi-Paxos~\cite{lamport1998paxos}, we find \sys{}
-reduces end-to-end application latency by \textbf{XX\%}. Due to
-additional messages, however, this comes at the cost of reduced
-maximum throughput (\textbf{XX} ops/sec compared to \textbf{XX}
-ops/sec for multi-Paxos). Our evaluation demonstrates how \sys{} can leverage
-batching to achieve the best of both worlds, still achieving
-\textbf{XX\%} lower latency \true{while matching multi-Paxos's throughput}.
+Compared to Multi-Paxos~\cite{lamport1998paxos}, we find \sys{}
+reduces end-to-end application latency by up to 75\%. Due to
+additional messages, however, this comes at the cost of about 1/2 the
+maximum throughput.
 
 In summary, this paper makes the following contributions:
 \begin{itemize}[leftmargin=*]
 \item The definition of \mdllong{}.
 \item A proof of external equivalence between an application running on \sdl{} and a transformation of it running on \mdl{}.
 \item The first protocol for cross-shard \mdl{}: \sys{}.
-\item An implementation and evaluation of \sys{} that shows \true{approaches a 75\% reduction in latency for applications compared to a Linearizable baseline as fanout increases.}
+\item An implementation and evaluation of \sys{} that shows it approaches a 75\% reduction in latency for applications compared to a Linearizable baseline as fanout increases.
 \end{itemize}
