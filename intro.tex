@@ -27,7 +27,7 @@ On the other hand, if an application issues multiple concurrent operations again
 
 This paper introduces \mdllong{} (\mdl{}), a consistency model similar to Linearizability that allows concurrent client operations and requires the system to appear to order them in the same order a client issues them.
 \Mdl{} builds on intuition developed by earlier work, such as A-Linearizability introduced by Zookeeper~\cite{hunt2010zookeeper} and session guarantees~\cite{terry1994session}, for intuitively allowing multiple client operations.
-\Mdl{} is distinct from this earlier work because it targets providing Linearizability-like consistency for all operations, is formally specified, and introduces suffix-complete failure semantics.
+\Mdl{} is distinct from this earlier work because it targets providing Linearizability-like consistency for all operations, is formally specified, and introduces suffix-closed failure semantics.
 We argue these make it a natural and elegant extension of Linearizability for multi-dispatch.
 
 %* in this paper we modernize linearizability by introducing multi-dispatch linearizability\\
@@ -49,21 +49,20 @@ Thus programmers can specify and reason about their program as they currently do
 We find that some existing designs provide \mdllong{} for a single shard~\cite{ongaro2014consensus}, but to the best of our knowledge, there are no existing designs that provide it for multiple shards.
 There are three challenges in providing \mdl{} across shards:
 (1) ensuring operations are ordered across shards in the order the client issued them,
-(2) ensuring suffix-complete failure semantics,
+(2) ensuring suffix-closed failure semantics,
 and
 (3) providing lower end-to-end latency than sequential single-dispatch Linearizable operations.
 
 We present \sys{}, the first protocol to achieve all of these and thus
 provide multi-shard \mdl{}.
 \sys{} includes two phases: a parallel fault-tolerance phase followed by a sequential coordination phase.
-In the fault tolerance phase, operations are replicated via Paxos~\cite{lamport1998paxos} as soon as they arrive at their relevant shards.
+In the fault-tolerance phase, operations are replicated via Paxos~\cite{lamport1998paxos} as soon as they arrive at their relevant shards.
 In the coordination phase, operations are coordinated and then executed by the shards. An operation is coordinated by the same client's previous operation via coordination requests that are sent directly from shard to shard.
-This sequential coordination is key to enforcing both the client issue order and the suffix-complete failure semantics:
+This sequential coordination is key to enforcing both the client issue order and the suffix-closed failure semantics:
 a client's later operation will only be ordered and thus executed if the preceding operation has been successfully replicated and coordinated.
 
 The two phases require more messages and result in higher latency for an \textit{individual} operation than an individual single-dispatch operation.
 But, they unlock parallelism that yields lower end-to-end application latency as the number of concurrent operations grows.
-...
 
 % sdl:
 % client -> leader

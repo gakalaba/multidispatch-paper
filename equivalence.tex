@@ -89,7 +89,9 @@ $\alpha$ that are not actions of $A_i$. The states of $\alpha|A_i$ are
 given by the $i$th component of the corresponding state in $\alpha$. The
 projection of a trace is defined similarly.
 
-Further, we can write the projection of a state $s$ of $A$ on $A_i$ as $s|A_i$.  Finally, we can also project $\trace(\alpha)$ onto a set of actions $\Pi$ where $\trace(\alpha)|\Pi$ yields the subsequence of $\trace(\alpha)$ containing only actions in $\Pi$.
+Further, we can write the projection of a state $s$ of $A$ on $A_i$ as $s|A_i$. 
+Finally, we can also project $\trace(\alpha)$ onto a set of actions $\Pi$ where
+$\trace(\alpha)|\Pi$ yields the subsequence of $\trace(\alpha)$ containing only actions in $\Pi$.
 
 \subsubsection{Channels}
 \label{sec:equivalence:preliminaries:channels}
@@ -179,20 +181,13 @@ its sequential specification would be the set of all sequences of reads and
 writes such that reads return the value written by the most recent write or the
 initial value if none exists.
 
-We can also compose types $\{\type_x\}_{x \in X}$ and sequential
-specifications $\{\spec_x\}_{x \in X}$. Formally, the values of $\type = \prod_{x
-  \in X} \type_x$ are vectors of the values of the composed types. $\ops(\type)$
-is the union of those of the composed types. Finally, the composite sequential
-specification $\spec = \prod_{x \in X} \spec_x$ is the set of all interleavings of the the invocation-response pairs of the component
-specifications $\spec_x$.
-
 \subsubsection{System Model}
 \label{sec:equivalence:preliminaries:model}
 
 We model a distributed application as the composition of two finite sets of I/O
 automata: processes and channels. $n$ denotes the number of processes, so there are $n^2$ channels. The processes execute the application's code by performing local computation, exchanging messages via channels, and performing invocations on and receiving responses from services.
 
-In the results below, we are interested in reasoning about which process invariants hold while assuming various correctness conditions of the services they interact with. Thus, we do not model services as IOA. Instead, we assume the processes interact with a (possibly composite) service with an arbitrary type $\type$ and $\spec$ defined for $n$ processes.
+In the results below, we are interested in reasoning about the processes' external behaviors while assuming various correctness conditions of the services they interact with. Thus, we do not model services as IOA. Instead, we assume the processes interact with a service with an arbitrary type $\type$ and $\spec$ defined for $n$ processes.
 
 For each operation $o \in \ops(\type)$, process $P_i$ is then assumed to have an output action for every invocation action in $\invs(o)$ with process index $i$. Similarly, $P_i$ has an input action for every response action in $\resps(o)$ with process index $i$. We refer to these input and output actions as a process's \textit{system-facing} actions $\system(P_i)$.
 
@@ -209,7 +204,11 @@ about the drift or skew of its clock relative to others. Second, processes only
 invoke an operation on a service when they have no outstanding send-to or
 receive-from actions at any channels.
 
-Let $P = \prod_{i \in I} P_i$ be the composition of the $n$ processes and $C = \prod_{1 \leq i \leq n} \prod_{1 \leq j \leq n} C_{ij}$ be the composition of $n^2$ channels. Let $\alpha$ be an execution of the distributed application $P \times C$. $\alpha$ is \textit{well-formed} if it satisfies three criteria:
+Let $P = \prod_{i \in I} P_i$ be the composition of the $n$ processes and
+$C = \prod_{1 \leq i \leq n} \prod_{1 \leq j \leq n} C_{ij}$ be the composition of $n^2$ channels.
+Let $\alpha$ be an execution of the distributed application $P \times C$.
+
+$\alpha$ is \textit{well-formed} if it satisfies three criteria:
 First, for all $P_i$, $\trace(\alpha) | \system(P_i)$ must be a sequence of alternating invocation and matching response actions, starting with an invocation. Second, for all $C_{ij}$, $\alpha | C_{ij}$ is well-formed. Third, for all $P_i$, $P_i$ does not take an output step while waiting for a response from some service. 
 
 \subsubsection{External Equivalence}

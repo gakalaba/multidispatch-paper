@@ -3231,7 +3231,7 @@
   {-3.5\p@}%
   {\ACM@NRadjust{\@parfont\@adddotafter}}}
 \newcommand\noindentparagraph{\@startsection{paragraph}{4}{\z@}%
-  {-.5\baselineskip \@plus -2\p@ \@minus -.2\p@}%
+  {-.1\baselineskip \@plus -2\p@ \@minus -.2\p@}%
   {-3.5\p@}%
   {\ACM@NRadjust{\@parfont}}}
 

@@ -1,11 +1,10 @@
 \section{\Multidispatch{} Linearizability}
 \label{sec:mdl}
 
-In this section, we define \multidispatch{} linearizability and show how
+In this section, we define our new consistency model and show how
 applications can be transformed to reap the performance benefits it offers while appearing to behave identically to users.
-We first describe our model of distributed applications and systems
-(\S\ref{sec:mdl:applications} and \S\ref{sec:mdl:systems}).
-We then define \MDL{} (\S\ref{sec:mdl:def}). We conclude with a description
+We first describe our model of distributed applications
+(\S\ref{sec:mdl:applications} and \S\ref{sec:mdl:systems}) and then define \MDL{} (\S\ref{sec:mdl:def}). We conclude with a description
 of how to transform applications and prove our equivalence result
 (\S\ref{sec:mdl:equivalence}).
 
@@ -126,7 +125,7 @@ objects on different shards. As we will see in Section~\ref{sec:mdl:zookeeper},
 guaranteeing suffix-closed failures is one way in which existing systems fail
 to correctly implement \multidispatch{} linearizability.  
 
-\subsection{Parallelizing Apps \& External Equivalence}
+\subsection{Transforming Apps \& External Equivalence}
 \label{sec:mdl:equivalence}
 
 In this section, we show how we can transform an application that interacts with
@@ -137,7 +136,7 @@ the users can tell).
 
 We first define the transformation and several preliminaries. We then
 present a condensed form of the proof that the transformation preserves external
-equivalence. For ease of exposition, we focus on the actions within an
+equivalence. (A complete proof is elided for brevity.) For ease of exposition, we focus on the actions within an
 execution and assume states can be modified and reordered as needed.
 
 \subsubsection{Parallelizing an Application}
@@ -273,7 +272,7 @@ Second, assume the cycle contains at least one $\prec_U$ edge. Then the cycle ca
 written as
 $\pi_1 \prec_U \pi_2 \prec_{\alpha} \ldots \prec_{\alpha} \pi_n \prec_{\alpha} \pi_1$. By the definition of $<_U$, clearly $\pi_1$ precedes $\pi_2$ in $\alpha$.
 Further, since users interact with processes using channels, $\pi_2$ and
-$\pi_n$ are either receive-from or send-to action, so we can use the same
+$\pi_1$ are either receive-from or send-to actions, so we can use the same
 reasoning as above to conclude $\pi_2$ precedes $\pi_1$ in $\alpha$, again a
 contradiction. 
 

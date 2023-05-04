@@ -1,7 +1,9 @@
 \documentclass[sigplan,10pt,screen,anonymous]{acmart}
+%\documentclass[sigplan,10pt,screen]{acmart}
 \renewcommand\footnotetextcopyrightpermission[1]{}
 
 \settopmatter{printfolios=true,printacmref=false}
+%\settopmatter{printfolios=false,printacmref=false}
 
 %%
 %% \BibTeX command to typeset BibTeX logo in the docs
@@ -20,8 +22,8 @@
 % \acmDOI{XXXXXXX.XXXXXXX}
 
 %% These commands are for a PROCEEDINGS abstract or paper.
-\acmConference[SOSP '23]{29th ACM Symposium on Operating Systems Principles}{October 23--26,
-  2023}{Koblenz, Germany}
+\acmConference[SOSP '23]{29th ACM Symposium on Operating Systems Principles}{October 23--26,  2023}{Koblenz, Germany}
+
 %%
 %%  Uncomment \acmBooktitle if the title of the proceedings is different
 %%  from ``Proceedings of ...''!
@@ -79,8 +81,10 @@
 \usepackage[font=small,skip=1pt]{caption}
 
 \usepackage{algpseudocode}
-\usepackage[linesnumbered,ruled]{algorithm2e}
+\usepackage[linesnumbered,ruled,noend]{algorithm2e}
 \usepackage{enumitem}
+\usepackage[capitalize,noabbrev]{cleveref}
+\newcommand{\crefrangeconjunction}{--}
 
 % Names
 % These are in common.tex
@@ -151,6 +155,9 @@
 
 %%%%% END Formalism %%%%%
 
+%\renewcommand{\noindentparagraph}[1]{\noindent{\textbf{\textit{#1}}}\ignorespaces}
+
+
 %-------------------------------------------------------------------------------
 \begin{document}
 \include{common}
@@ -159,8 +166,8 @@
 %don't want date printed
 \date{}
 
-% make title bold and 14 pt font (Latex default is non-bold, 16 pt)
-\title{\Multidispatch{} Linearizability}
+\title[\mdllong{} Liberates Applications For Lower Latency]{\mdllong{}\\ Liberates Applications For Lower Latency}
+% \title{\Multidispatch{} Linearizability}
 
 % %for single author (just remove % characters)
 % \author{
@@ -199,9 +206,8 @@
 
 \clearpage
 \appendix
-
 \input{equivalence.tex}
-\input{correctness.tex}
+% \input{correctness.tex}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \end{document}

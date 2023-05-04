@@ -1,7 +1,10 @@
 \section{Implementation}
 \label{sec:implementation}
-We implemented \system by modifying the existing implementation of basic \mpaxos from the EPaxos codebase ~\ref{} written in Go. To provide a fair comparison against the \mpaxos baseline, we change as little as possible within the existing framework. Both \system and Paxos have single threaded leaders and replicas, neither have operation type-specific optimizations (such as read leases), both use the thrifty optimization, and neither use batching for fault-tolerance. The existing framework implements a replicated key-value store. We extend the message types each replica handles to include our coordination and final ordering messages.
 
-Since \sdl is composable, the unmodified \mpaxos clients submit requests to the leader of a single shard. We extended the client library so that clients issue requests to multiple shard leaders, since we evaluate the multi-sharded setting. Clients keep track of a per-shard sequence number, and when requests are concurrent, they submit coordination requests to the shard leaders holding predecessor.
+We implemented \sys{} by modifying the existing implementation of basic Multi-Paxos from the EPaxos codebase ~\cite{} written in Go~\cite{}. To provide a fair comparison against the Multi-Paxos baseline, we change as little as possible within the existing framework. Both \sys{} and Multi-Paxos have single threaded leaders and replicas, neither have operation type-specific optimizations (such as read leases), both use the thrifty optimization, and neither use batching for fault-tolerance. The existing framework implements a replicated key-value store,
+which we extend to handle our coordination and final ordering messages.
 
-The code and experimental scripts are available online ~\cite{}.
+Since \sdl{} is composable, the unmodified Multi-Paxos clients submit requests to the leader of a single shard. We extended the client library so that clients issue requests to multiple shard leaders, since we evaluate the multi-shard setting. Clients keep track of a per-shard sequence number, and when requests are concurrent, they submit coordination requests to the shard leaders holding predecessor.
+
+% Jeff: Cut this for now, add for camera-ready
+% The code and experimental scripts are available online ~\cite{}.

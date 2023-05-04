@@ -48,7 +48,7 @@ its special recovery protocol that runs when a shard leader fails,
 and why it is correct.
 
 
-\paragraph{\sys{} overview.}
+\noindentparagraph{\sys{} Overview.}
 The key insight in \sys{} is to decouple fault-tolerance from ordering, allowing
 parallelization of most processing of concurrent operations. To this end, the
 \sys{} protocol has three phases for each set of concurrent operations from a
@@ -85,7 +85,7 @@ suffix-closed failure semantics,
 \mdl{} ordering,
 and lower latency.
 
-\paragraph{Components and Protocol.}
+\noindentparagraph{Components and Protocol.}
 There are two components in \sys{}, \textit{clients} that submit operations to a collocated \textit{client-library} and \textit{shards} that store data and execute clients' operations.
 The full client and shard protocols are specified in Algorithms~\ref{clientprotocol}, ~\ref{shardprotocolmessages}, and~\ref{shardprotocolcoord}.
 
@@ -143,10 +143,10 @@ The leader (and replicas) then execute operations in the order of the ordered lo
 Replication for each shard is done following the standard Multi-Paxos protocol, which tolerates $f$ crash failures with $2f+1$ replicas.
 Updates to the pending set and ordered log are both replicated through Multi-Paxos.
 
-When a leader receives a coordination request for an operation it has not yet coordinated (or received) it queues the request.
-Conversely, when a leader receives a coordination request for an operation it already coordinated it immediately sends the coordination reply message to the specified successor.
+When a leader receives a coordination request for an operation it has not yet coordinated (or received), it queues the request.
+Conversely, when it receives a coordination request for an operation it already coordinated, it immediately sends the coordination reply message to the operation's successor.
 
-\paragraph{Suffix-closed failures.}
+\noindentparagraph{Suffix-closed Failures.}
 \Mdl{} requires that if a client operation fails then all concurrent, but later issued operations fail.
 \sys{} ensures such suffix-closed failures using coordinate replies that are only sent after an operation is committed and coordinated.
 Ordering coordination replies after an operation is committed ensures the operation will be executed, either by the current leader in the normal case or by a new leader in the case of failover.
@@ -164,7 +164,7 @@ In addition, the shard sends a fail\_coordination message to its successor opera
 (If no coordination request is queued it tracks the failure so it can reply to a future coordination request with a fail\_coordination message.)
 
 
-\paragraph{\Mdl{} ordering.}
+\noindentparagraph{\Mdl{} Ordering.}
 \Mdl{} requires there exist a legal total order over all operations that respects real-time order and each client's issue order.
 \sys{} ensures such an order exists through coordinate message that orchestrate the coordination and thus execution of operations around shards.
 
@@ -182,13 +182,13 @@ One of the four possible ordering creates a cycle and thus is not \mdl{}:
 on shard A $o_{a4}$ then $o_{a1}$ and on shard B $o_{b2}$ then $o_{b3}$.
 This interleaving creates a cycle where $o_{a4}$ is before $o_{a1}$ on shard A, $o_{a1}$ is before $o_{b2}$ by client 1's issue order, $o_{b2}$ is before $o_{b3}$ by shard B, and $o_{b3}$ is before $o_{a4}$ by client 2's issue order.
 Our coordination messages preclude this cycle by controlling when operations are added to ordered logs.
-In this case, they would ensure $o_{a4}$ is only added to the ordered log at shard A after $o_{b3}$ is added to the ordered log at shard B, which is after $o_{b2}$ is added to the ordered log in this example, which in turn was only added after $o_{a1}$ was added to the ordered log at shard A.
+In this case, they would ensure $o_{a4}$ is only added to the ordered log at shard A after $o_{b3}$ is added to the ordered log at shard B. In this example, this is after $o_{b2}$ is added to the ordered log, which in turn was only after $o_{a1}$ was added to the ordered log at shard A.
 
 A complete proof that \sys{} provides \Mdl{} ordering is elided for brevity.
 
 
 %\subsubsection{Operation vs.\@ End-To-End Latency}
-\paragraph{Operation vs.\@ end-to-end latency.}
+\noindentparagraph{Operation vs.\@ End-to-end Latency.}
 Multi-Paxos provides \sdl{} with a single round of replication for both fault
 tolerance and ordering.  \sys{}, in contrast, decouples replication for fault
 tolerance and ordering into two rounds.  This increases the latency of
@@ -198,23 +198,22 @@ part of its protocol that is sequential are the coordination messages.  The
 coordination requests are sent by the client-library and the coordination
 replies are sent from shard to shard.  This puts at most a single shard-to-shard
 message per operation in the sequential critical path of many concurrent client
-operations. Moreover, these coordination messages may overlap with the second
+operations. Moreover, these coordination messages may overlap with the first
 round of replication.
 
-Figures~\ref{fig:sdlperf} and~\ref{fig:mdlperf} compare the performance of
-Multi-Paxos with sequentially issued operations and \sys{}.  The performance
-depends on the number of concurrent client requests in the execution of an
-application operation as well as the number of distinct physical shards those
-requests are sent to.  Let $T$ be the one-way delay between machines (clients,
+The performance of both Multi-Paxos (assuming sequentially issued operations) and \sys{} depend on the number of concurrent client operations in the execution of an
+application request as well as the number of distinct physical shards those
+operations are sent to. Let $T$ be the one-way delay between machines (clients,
 leaders, and replicas).  When there are $N$ (potentially) concurrent client
-requests, Multi-Paxos's latency is $4*T*N$ while \sys{}'s latency is
-$6T + (N-1)*T$ in the worst case when each request lies at a different shard
+requests, Multi-Paxos's latency is $4*T*N$. On the other hand,
+Figure~\ref{fig:mdlperf} shows \sys{} performance. Its latency
+is $6T + (N-1)*T$ in the worst case when each request lies at a different shard
 than its predecessor.  Thus, while the latency of an individual operation is
 higher in \sys{}, an application's worst-case end-to-end latency approaches
 $1/4$ that of Multi-Paxos as the number of concurrent client requests grows. We
 specify worst case performance here since the coordination overhead for two
 consecutively issued concurrent requests that lay at the same shard is
-negligible, as it does not require a cross-shard message.
+negligible, as it does not require a cross-shard message. 
 
 %% As a result, a client's end-to-end application latency when using \sys{} scales by a factor
 %% of the one-way cross-shard latency as the number of operations increases. In contrast,
@@ -272,7 +271,7 @@ negligible, as it does not require a cross-shard message.
 %% operations on other shards in these systems would be impractically slow. The
 %% problem is that existing state-machine replication protocols couple
 %% fault-tolerance and ordering---e.g.\ leaders replicate both the operation itself
-%% and its order in the log simultaneously. In order to guarantee suffix-complete
+%% and its order in the log simultaneously. In order to guarantee suffix-closed
 %% failure semantics, operations cannot be replicated until their predecessors have
 %% also been replicated.
 
@@ -330,6 +329,7 @@ negligible, as it does not require a cross-shard message.
 % batching is a nice fit since it can exploit this high load
 % moreover, ordering a request does not depend on previously arrived requests from independent clients to be ordered, hwich is a nice design that allows each client to see issue order scale with just their behavior, not other clients'.
 
+\begin{comment}
 \begin{figure}
 \begin{tikzpicture}
 [box/.style={draw=none, thick, font=\small, text centered, minimum height=1.2cm, minimum width=1.0cm}]
@@ -404,6 +404,7 @@ negligible, as it does not require a cross-shard message.
 \caption{Performance for SDL. Since clients must issue requests sequentially, we expect N requests issued to take around $4*T*N$ units of time, where $T$ is the latency between servers. In our case we assume this latency is equivalent between clients and leaders, as well as leaders and replicas. We only display a single shard case since the latency should be equivalent for multiple shards.}
 \label{fig:sdlperf}
 \end{figure}
+\end{comment}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{figure}
 \begin{tikzpicture}
@@ -556,11 +557,92 @@ We do not replicate the coordination status of an operation to minimize the numb
 Thus, we need to assume that any committed operation could have been coordinated.
 
 This brings two requirements for recovering committed-but-not-ordered operations.
-First, we must ensure they are executed to ensure suffix-complete failures.
+First, we must ensure they are executed to ensure suffix-closed failures.
 %
 Second, we must ensure all committed-but-not-ordered operations are ordered consistently with any potential previous ordering.
 The first requirement is trivially satisfied by executing the operations in any order.
 The second requirement is more complex and requires that we avoid introducing any cycles when considering shard ordering and client issue orderings.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%% Client %%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{algorithm}[!tb]
+    \State $PID \gets$ unique client ID\\
+    \State $\mathcal{L} \gets \{...\}$ \algorithmiccomment{Shard Leaders}\\
+    \State $i \gets 0$ \algorithmiccomment{Sequence No Per Shard}\\
+    \State $prevReq \gets NULL$\\
+    %\State $m$ \algorithmiccomment{mutex}\\
+    \Function{\clientSubmit{Op, K, V}}{
+        $seqno := i$\\
+        $i\mathrel{+}=1$\\
+        $Req := (Op, K, V, PID, seqno)$\\
+        %$m.lock()$ \algorithmiccomment{Critical section begins}\\
+        $prq := prevReq$\\
+        $prevReq \gets Req$\\
+        %$m.unlock()$ \algorithmiccomment{Critical section begins}\\
+        \IfThen{$prevReq \neq NULL$}{\Send $SubmitCR(prq, Req)$ to $L_{K-1} \in \mathcal{L}$}\\
+        \Send $SubmitOp(Req)$ to $L_K \in \mathcal{L}$\\        
+    }
+
+    \Function{\clientWait{Req}}{
+        \Wait receive $SubmitOpReply(V)$ from $L_K \in \mathcal{L}$\\
+        %$m.lock()$\\
+        $\IfThen{prevReq = Req}{prevReq \gets NULL}$\\
+        %$m.unlock()$\\
+        \Return $V$\\
+    }
+    \caption{MD-Lin Client}
+    \label{clientprotocol}
+\end{algorithm}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%% Shard Leader Communcation %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{algorithm}[!tb]
+    \Function{\leaderSubmit{Op, K, V, P, s}}{
+        % \If{$ClientSeqnoMap[P] \neq s$}{
+        %     $buffer_{P}(\{Op, K, V, P, s\})$\\
+        %     \algorithmiccomment{Buffer per-client out of order requests}\\
+        %     \Return\\
+        % }
+        \algorithmiccomment{Issue this op}\\
+        $bufferedMap\append{(Op, K, V, P, s, 0)}$\\
+        % $ClientSeqnoMap[P]\mathrel{+}=1$\\
+        \Send $Accept(Op, K, V, P, s)$ to all $r \in \mathcal{R}$\\
+        % \For{$(Op, K, V, P, s) \in buffer_{P}$}{
+        % \algorithmiccomment{Issue OoO buffered ops that are now ready}\\
+        %     \If{$ClientSeqnoMap[P] = s$}{
+        %         $bufferedMap\append{(Op, K, V, P, s, 0)}$\\
+        %         $ClientSeqnoMap[P]\mathrel{+}=1$\\
+        %         \Send $Accept(Op, K, V, P, s)$ to all $r \in \mathcal{R}$\\
+        %     }
+        % }
+    }
+    \Function{\leaderHandleAccept{req}}{
+        $req.acks\mathrel{+}=1$\\
+        \If{$req.acks \ge |Q|$} {
+             $req.committed \gets True$\\
+        }
+        \If{$req.committed \land req.coordinated$}{
+            $req.ts := \max(req.ts+1, ShardTS)$\\
+            $ShardTS := \max(req.ts, ShardTS)+1$\\
+            $SubmitCRResp(req.succrq, True, req.ts)$ to $L_{K+1} \in \mathcal{L}$\\
+            $bufferedMap\pop(req)$\\
+            $orderedLog\append{req}$\\
+            \Send $FinalAccept(req)$ to all $r \in \mathcal{R}$\\            
+        }
+    }
+    \Function{\leaderHandleFinalAccept{req}}{
+        $req.facks\mathrel{+}=1$\\
+        \If{$req.facks \ge |Q|$}{
+            $v := \execute{req}$\\
+            $SubmitOpReply(req, v)$ to $client$\\
+            \Send $Commit(req)$ to all $r \in \mathcal{R}$\\
+        }
+    }   
+    \caption{MD-Lin Shard Leader Communication}
+    \label{shardprotocolmessages}
+\end{algorithm}
 
 \subsubsection{Timestamps}
 To ensure a compatible ordering with other shards the new leader issues coordination requests to the predecessors of all operations in the committed-but-not-ordered set.
@@ -577,7 +659,7 @@ Consider two operations $o_m$ and $o_n$ on this shard where there is a path in t
 The recovery protocol ensures that $o_m$'s ts on the new leader, $\textit{ts}_\textit{m.new}$ is $\le$ its ts on the old leader, $\textit{ts}_\textit{m.old}$, because it is only based on the predecessor\_ts instead of the max of predecessor\_ts and shard\_ts.
 Further, if there is a path in the graph of constraints it can only go through coordinated operations that each ensure their ts is larger than both their predecessors and earlier operations on the same shard.
 Thus, the recovery protocol also ensures that $o_n$'s ts on the new leader, $\textit{ts}_\textit{n.new}$, is $>$ it's predecessor's ts, which by the transitive application of the timestamping rules is greater than $\textit{ts}_\textit{m.old}$.
-Together, this ensures that  $\textit{ts}_\textit{m.new}$ $\le$ $\textit{ts}_\textit{m.old}$ $<$ $\ldots$ $<$ $\textit{ts}_\textit{m.old}$ and thus the recovery protocol will compatibly order $o_m$ before $o_n$ when it sorts them based on the ts \footnote{Reasoning is similar, but significantly more complex, for cases where multiple shard leaders fail which we omit due to space constraints}.
+Together, this ensures that  $\textit{ts}_\textit{m.new}$ $\le$ $\textit{ts}_\textit{m.old}$ $<$ $\ldots$ $<$ $\textit{ts}_\textit{m.old}$ and thus the recovery protocol will compatibly order $o_m$ before $o_n$ when it sorts them based on the ts.\footnote{Reasoning is similar, but significantly more complex, for cases where multiple shard leaders fail which we omit due to space constraints.}
 
 
 %% special recovery can only change the shard ordering...
@@ -692,38 +774,7 @@ Together, this ensures that  $\textit{ts}_\textit{m.new}$ $\le$ $\textit{ts}_\te
 %% Finally, we mention that coordination requests might also be lost in the network or across leader failures. To solve this, each request has a fixed amount of total epochs for which it can remain uncoordinated. After a leader sees that a request is "stale", it will fail the request as well as any pending coordination requests from successors of that request, beginning the suffix closed failure set. This solution also handles the garbage collection of the buffered log.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%% Client %%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{algorithm}
-    \State $PID \gets$ unique client ID\\
-    \State $\mathcal{L} \gets \{...\}$ \algorithmiccomment{Shard Leaders}\\
-    \State $i \gets 0$ \algorithmiccomment{Sequence No Per Shard}\\
-    \State $prevReq \gets NULL$\\
-    %\State $m$ \algorithmiccomment{mutex}\\
-    \Function{\clientSubmit{Op, K, V}}{
-        $seqno := i$\\
-        $i\mathrel{+}=1$\\
-        $Req := (Op, K, V, PID, seqno)$\\
-        %$m.lock()$ \algorithmiccomment{Critical section begins}\\
-        $prq := prevReq$\\
-        $prevReq \gets Req$\\
-        %$m.unlock()$ \algorithmiccomment{Critical section begins}\\
-        \IfThen{$prevReq \neq NULL$}{\Send $SubmitCR(prq, Req)$ to $L_{K-1} \in \mathcal{L}$}\\
-        \Send $SubmitOp(Req)$ to $L_K \in \mathcal{L}$\\        
-    }
-
-    \Function{\clientWait{Req}}{
-        \Wait receive $SubmitOpReply(V)$ from $L_K \in \mathcal{L}$\\
-        %$m.lock()$\\
-        $\IfThen{prevReq = Req}{prevReq \gets NULL}$\\
-        %$m.unlock()$\\
-        \Return $V$\\
-    }
-    \caption{MD-Lin Client}
-    \label{clientprotocol}
-\end{algorithm}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%% Shard Leader %%%%%%%%%%%%%%
+%%%%% Shard Leader Coordination %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % \begin{algorithm}
 %     \State $ShardTS \gets 0$\\
@@ -763,53 +814,8 @@ Together, this ensures that  $\textit{ts}_\textit{m.new}$ $\le$ $\textit{ts}_\te
 %     \caption{MD-Lin Shard Leader Epoch Handling}
 %     \label{shardprotocolmain}
 % \end{algorithm}
-\begin{algorithm}
-    \Function{\leaderSubmit{Op, K, V, P, s}}{
-        \If{$ClientSeqnoMap[P] \neq s$}{
-            $buffer_{P}(\{Op, K, V, P, s\})$\\
-            \algorithmiccomment{Buffer per-client out of order requests}\\
-            \Return\\
-        }
-        \Wait until $accepting = True$\\
-        \algorithmiccomment{Issue this op}\\
-        $bufferedMap\append{(Op, K, V, P, s, 0)}$\\
-        $ClientSeqnoMap[P]\mathrel{+}=1$\\
-        \Send $Accept(Op, K, V, P, s)$ to all $r \in \mathcal{R}$\\
-        \For{$(Op, K, V, P, s) \in buffer_{P}$}{
-        \algorithmiccomment{Issue OoO buffered ops that are now ready}\\
-            \If{$ClientSeqnoMap[P] = s$}{
-                $bufferedMap\append{(Op, K, V, P, s, 0)}$\\
-                $ClientSeqnoMap[P]\mathrel{+}=1$\\
-                \Send $Accept(Op, K, V, P, s)$ to all $r \in \mathcal{R}$\\
-            }
-        }
-    }
-    \Function{\leaderHandleAccept{req}}{
-        $req.acks\mathrel{+}=1$\\
-        \If{$req.acks \ge |Q|$} {
-             $req.committed \gets True$\\
-        }
-        \If{$req.committed \land req.coordinated$}{
-            $req.ts := \max(req.ts+1, ShardTS)$\\
-            $ShardTS := \max(req.ts, ShardTS)+1$\\
-            $SubmitCRResp(req.succrq, True, req.ts)$ to $L_{K+1} \in \mathcal{L}$\\
-            $bufferedMap\pop(req)$\\
-            $orderedLog\append{req}$\\
-            \Send $FinalAccept(req)$ to all $r \in \mathcal{R}$\\            
-        }
-    }
-    \Function{\leaderHandleFinalAccept{req}}{
-        $req.facks\mathrel{+}=1$\\
-        \If{$req.facks \ge |Q|$}{
-            $v := \execute{req}$\\
-            $SubmitOpReply(req, v)$ to $client$\\
-            \Send $Commit(req)$ to all $r \in \mathcal{R}$\\
-        }
-    }   
-    \caption{MD-Lin Shard Leader Communication}
-    \label{shardprotocolmessages}
-\end{algorithm}
-\begin{algorithm}
+
+\begin{algorithm}[!tb]
     \Function{\leaderRecvCR{rq, succrq}}{
     \algorithmiccomment{Received CR from client of succrq}\\
         $rq.succrq := succrq$\\
