@@ -55,6 +55,7 @@ This reduces application latency but because it violates the assumptions of Line
  w(b=1) & r(b)    
 \end{tabular}
 \caption{}
+\label{subfig:wa_wb}
 \end{center}
 \end{subfigure}
 ~
@@ -66,6 +67,7 @@ This reduces application latency but because it violates the assumptions of Line
  test\_and\_set(d==0?1) & test\_and\_set(d==0?2)   
 \end{tabular}
 \caption{}
+\label{subfig:test_and_set}
 \end{center}
 \end{subfigure}
 ~
@@ -77,6 +79,7 @@ This reduces application latency but because it violates the assumptions of Line
  r(g) & r(e)    & \textcolor{gray}{r(f)}
 \end{tabular}
 \caption{}
+\label{subfig:read_breaks}
 \end{center}
 \end{subfigure}
 ~
@@ -91,6 +94,7 @@ This reduces application latency but because it violates the assumptions of Line
  \textcolor{gray}{w(j=1)}
 \end{tabular}
 \caption{}
+\label{subfig:optimize_breaks}
 \end{center}
 \end{subfigure}
 ~
@@ -102,6 +106,7 @@ This reduces application latency but because it violates the assumptions of Line
  w(kb=1) & r(kb)    
 \end{tabular}
 \caption{}
+\label{subfig:resharding_breaks}
 \end{center}
 \end{subfigure}
 ~
@@ -116,10 +121,11 @@ This reduces application latency but because it violates the assumptions of Line
 \end{center}
 \end{subfigure}
 \caption{}
+\label{subfig:suffix_closed_breaks}
 \label{fig:naive_breaks_stuff}
 \end{figure*}
 
-Figure~\ref{fig:naive_breaks_stuff} shows several simple examples where naive parallelization results in return values that are not possible under Linearizability. 
+\Cref{fig:naive_breaks_stuff} shows several simple examples where naive parallelization results in return values that are not possible under Linearizability. For instance, \cref{}
 
 Look at all these examples where stuff breaks with naive parallelization:
 -you could fix the first one or two manually, if you are really smart, but that is fragile as hell
