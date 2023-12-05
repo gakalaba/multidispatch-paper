@@ -10,93 +10,313 @@
 % latency benefit of using multi-dispatch''}
 
 
+% <talk about how there are cases where you'd want data dependencies and cases where you don't but you fundaentally cannot parallelize>
+% <talk about how we're limited in the API as well - frameworks for writing apps don't allow you to even interact with backends in ways that expose anything but this...>
+% <talk about how there's a need then to have concurency within a single client, and one where we STILL get linearizeability! introduce what we've made>
 
-Linearizability is one of the most widely used consistency models.
-It is what is provided by Paxos~\cite{lamport1998paxos}, RAFT~\cite{ongaro2014raft}, and PBFT~\cite{castro1999pbft} among many others.
-Linearizability has the same guarantees as a single machine that processes operations one at a time in the order it receives them over a network.
-This makes it a `strong' consistency model that has very intuitive behavior for programmers to reason about.
+% <talk about what linearizeability is abstractly. what it provides, why that is appealing. where it's used, how, in what systems, why the use it.>
+Linearizability is one of the most widely used consistency
+models. It is what is provided by Paxos~\cite{lamport1998paxos}, RAFT~\cite{ongaro2014raft},
+and PBFT~\cite{castro1999pbft} among many others. Linearizability has
+the same guarantees as a single machine that processes
+operations one at a time in the order it receives them
+over a network. This makes it a ‘strong’ consistency
+model that has intuitive behavior for programmers
+to reason about.
+%\texttt{etcd} is popular example of a Linarizeable key-value store, and many modern applications benefit from these strong guarantees including Kubernetes, Huawei, SalesForce, and many others.
+%WL: I commented out this sentence because we already talk about Linearizability's ubiquity above and because the naming of companies seems a bit odd.
 
-But Linearizability was defined 36 years ago~\cite{herlihy1990linearizability,herlihy1987linearizability} and thus predates many developments and trends in computing.
-One major trend is the use of \textit{multi-dispatch}, i.e., application processes concurrently dispatch multiple operations in an effort to
+% <talk about the detail that linearizeability is defined to have concurrency across clients but not within a single client. perhaps talk about why>
+% One of the most useful parts of \lin{} is that it is defined for concurrent objects, which helps reason about correctness when many different clients concurrently interact with shared data, especially at scale. While \lin{} defines behavior for concurrency across clients, it does not define behavior for concurrency within individual clients. \Lin{} specifically requires single-dispatch clients, that is, every client process
+% may only have a single outstanding operation at a time, or must behave sequentially. 
+% \wl{Come back to this paragraph to merge and refine.}
+
+Linearizability, however, was defined over 30 years ago~\cite{herlihy1990linearizability,herlihy1987linearizability} and thus predates many developments in computing.
+One notable development is the use of \textit{multi-dispatch}, i.e., application processes concurrently dispatch multiple operations to a system in an effort to
 decrease application latency.
-Linearizability specifically disallows this behavior and instead requires \textit{single-dispatch}, where a client process may only have a single outstanding operation at a time.
+Linearizability explicitly disallows this behavior and instead requires \textit{single-dispatch}, where each client process may have only one outstanding operation at a time.
+% Single dispatch is terrible for latency
+This single dispatch restriction significantly increases latency compared to multi-dispatch because each of an application's operations must wait for its predecessor to fully complete before being issued.
 
-This mismatch yields two unfortunate possibilities:
-If an application is restricted to single-dispatch when run on a Linearizable system, it gets the guarantees of Linearizability but loses out on the latency improvements from concurrency.
-On the other hand, if an application issues multiple concurrent operations against a Linearizable system, it gets the latency improvements from concurrency but the guarantees from Linearizability are lost.
+Applications can get around the latency limitations of single-dispatch by simply dispatching multiple operations at the same time.
+This is safe in some circumstances, which can be established by careful analysis of all potential interleavings of multi-dispatched operations from application code.
+Such analysis, however, requires expertise and is quite fragile in that it must be redone whenever there are any updates to the application.
+Moreover, requiring such expert analysis violates the raison d'\^etre of `strong' consistency models:
+to abstract the potential behaviors of the underlying system into something simple to reason about.
 
-This paper introduces \mdllong{} (\mdl{}), a consistency model similar to Linearizability that allows concurrent client operations and requires the system to appear to order them in the same order a client issues them.
-\Mdl{} builds on intuition developed by earlier work, such as A-Linearizability introduced by Zookeeper~\cite{hunt2010zookeeper} and session guarantees~\cite{terry1994session}, for intuitively allowing multiple client operations.
-\Mdl{} is distinct from this earlier work because it targets providing Linearizability-like consistency for all operations, is formally specified, and introduces suffix-closed failure semantics.
-We argue these make it a natural and elegant extension of Linearizability for multi-dispatch.
+\todo{make sure section 2 has an example where an update breaks the application...}
 
-%* in this paper we modernize linearizability by introducing multi-dispatch linearizability\\
-%** linearizability where clients can have many outstanding operations and operations are ordered by the system in the order they are issued\\
-%** builds on intuition developed by earlier work such a zookeeper's a-linearizability or the combination of session guarantees and linearizability\\
-%** contribution is a formal definition of multi-dispatch linearizability that makes the contract between systems and applications clear\\
-%*** first model to precisely capture this for all operations? (unlike a-linearizability)\\
-%*** for instance, suffix-failure semantics\\
-%** In turn, this formal model allow us to study \mdl\\
 
-New consistency models typically require programmers learn about a new set of potential behaviors from a system and learn how to reason about them correctly.
+
+% Naively mdl fixes the not-defined part of the problem, and now imposes issue-order on multi-dispatched ops, but still requires app programmers to reason about ... (when issue order is sufficient vs when ...
+% Enter transformation / heavy lift paragraph...
+
+% <introduce what how weve solved it and the fact that we evaluated and proved it>
+
+This paper introduces \mdllong{} (\mdl{}), a consistency model similar to Linearizability that allows concurrent client operations and respects a client's \textit{issue order} over them:
+if a client issues one operation and then another, it must appear to all clients that the first operation takes effect before the second.
+\mdl{} also requires \textit{suffix-closed failure semantics}:
+which intuitively state that if operation $o_1$ is issue-ordered before $o_2$ and $o_1$ fails then $o_2$ must also fail.
+\Mdl{} thus provides a formal extension of Linearizability to allow multi-dispatch in a way we argue in Section~\ref{sec:natural_extension} is a natural extension of the intuitive behavior applications expect.
+
+\todo{Need to have an argument about how issue-order and especially suffix-closed failures are a natural extension of what programmers expect, explain there why failures in particular are  necessary and not the obvious extension of linearizability (or something discussed in a-linearizability)}
+
+
+Yet, as a new consistency model it is also not simple to reason about:
+programmers would need to learn about the new potential system behaviors and would need to learn to reason about them correctly.
+% New consistency models typically require programmers learn about a new set of potential behaviors from a system and learn how to reason about them correctly.
 Instead of requiring this heavy lift from programmers, we allow them to instead reason about Linearizability, which they are familiar with and which is relatively simple to reason about.
-This is possible because we identify a sufficient set of conditions for transforming a single-dispatch program, $A$, into a multi-dispatch program $A^\prime$ that we prove is \textit{externally equivalent} to $A$, i.e., external observers cannot tell the difference between $A$ running on a (single-dispatch) Linearizable system and a $A^\prime$ running on a
-comparable \mdl{} system.
-Thus programmers can specify and reason about their program as they currently do and then apply our simple transformations to take advantage of the latency benefits of \mdl{} while knowing their program will behave in the same way.
+This is possible because we identify a sufficient set of conditions for transforming a single-dispatch program, $A$, into a multi-dispatch program $A^\prime$ that we prove is \textit{externally equivalent} to $A$, i.e., external observers cannot tell the difference between $A$ running on a (single-dispatch) Linearizable system and a $A^\prime$ running on a \mdl{} system.
+Thus, programmers can take advantage of the latency-lowering benefits of multi-dispatch for their application while only needing to specify and reason about it with single-dispatch Linearizability.
+
+%Thus programmers can specify and reason about their program as they currently do and then apply our simple transformations to take advantage of the latency benefits of \mdl{} while knowing their program will behave in the same way.
+%\wl{Is this punchy enough? knowing it will behave in the same way feels wimpy, if it was correct before then its now concurrent and correct!}
+
 
 %* with the greater power for programmers and the possibility of parallel operations from a single client comes a new responsibility to implement these new constraints in underlying systems
 
-We find that some existing designs provide \mdllong{} for a single shard~\cite{ongaro2014consensus}, but to the best of our knowledge, there are no existing designs that provide it for multiple shards.
-There are three challenges in providing \mdl{} across shards:
-(1) ensuring operations are ordered across shards in the order the client issued them,
-(2) ensuring suffix-closed failure semantics,
-and
-(3) providing lower end-to-end latency than sequential single-dispatch Linearizable operations.
-
-We present \sys{}, the first protocol to achieve all of these and thus
-provide multi-shard \mdl{}.
-\sys{} includes two phases: a parallel fault-tolerance phase followed by a sequential coordination phase.
-In the fault-tolerance phase, operations are replicated via Paxos~\cite{lamport1998paxos} as soon as they arrive at their relevant shards.
-In the coordination phase, operations are coordinated and then executed by the shards. An operation is coordinated by the same client's previous operation via coordination requests that are sent directly from shard to shard.
-This sequential coordination is key to enforcing both the client issue order and the suffix-closed failure semantics:
-a client's later operation will only be ordered and thus executed if the preceding operation has been successfully replicated and coordinated.
-
-The two phases require more messages and result in higher latency for an \textit{individual} operation than an individual single-dispatch operation.
-But, they unlock parallelism that yields lower end-to-end application latency as the number of concurrent operations grows.
-
-% sdl:
-% client -> leader
-% leader -> replica
-% replica -> leader
-% leader -> client
-%
-% 4 one-way delays with replication per OP.
-% 4N latency for N ops
-
-% mdl:
-% client -> leader               client -> prev_op_leader (for all ops at once)
-% leader -> replica              
-% replica -> leader (committed)
-%                                prev_op_leader -> leader (coordinated)
-%                                prev_op_leader -> leader (coordinated) ... N-1 of these
-%                                leader -> replica
-%                                replica -> leader
-%                                leader -> client
-% 4 N latency for 1 op
-% 6 + N latency for N ops
+% Some existing systems provide \mdl{} for a single shard~\cite{ongaroDISSERTATION}, but,
+% to the best of our knowledge none provide it across multiple shards.
+% Providing \mdl{} across shards has two requirements.
+% First, the system must ensure operations spread across shards respect the issue-ordering constraints from all clients.
+% Second, the system must ensure the \textit{suffix-closed failure semantics} required by \mdl{},
+% which intuitively state that if operation $o_1$ is issue-ordered before $o_2$ then if $o_1$ fails then so must $o_2$.
 
 
-To demonstrate the performance benefits offered by \MDL{},
-we implement and evaluate \sys{} in a data center environment.
-Compared to Multi-Paxos~\cite{lamport1998paxos}, we find \sys{}
-reduces end-to-end application latency by up to 75\%. Due to
-additional messages, however, this comes at the cost of about 1/2 the
-maximum throughput.
 
+
+
+
+% Ellis includes two phases: a parallel fault-tolerance phase followed by a sequential coordination phase.
+% In the fault-tolerance phase, operations are replicated via Paxos~\cite{lamport1998paxos} as soon as they arrive at their relevant shards.
+% In the coordination phase, operations are coordinated and then executed by the shards. An operation is coordinated by the same client's previous operation via coordination requests that are sent directly from shard to shard.
+% This sequential coordination is key to enforcing both the client issue order and the suffix-closed failure semantics:
+% a client's later operation will only be ordered and thus executed if the preceding operation has been successfully replicated and coordinated.
+
+Some existing systems provide \mdl{} for a single shard~\cite{ongaro2014consensus}, but,
+to the best of our knowledge none provide it across multiple shards.
+\sys{} is our new system that provides \mdl{} across shards.
+
+
+\sys{} provides low end-to-end latency through a careful separation of concerns that minimizes the amount of sequential coordination. % necessary between concurrent operations from a client.
+Each operation is made fault tolerant using Paxos~\cite{lamport1998paxos} as soon as it arrives at its shard.
+The latency from Paxos's replication is a significant portion of each operation and this design enables it to happen fully in parallel.
+After an operation is made fault tolerant, a single coordination message is sent from this shard leader to the shard leader of the client's next operation.
+These coordination messages form a transitive chain that \sys{} uses to ensure operations appear in their issue order and to enforce suffix-closed failure semantics.
+These messages are also the only sequential component in \sys{}'s processing of concurrent requests from a client.
+This sequential component is much smaller than that imposed by \sdl{} and is what enables \sys{} to provide much lower end-to-end latency for applications.
+\wl{Should we give the 3/4 limit here, or the more precise limit? Not sure...}
+% %These messages are also the only sequential component of coordination
+
+% The two phases require more messages and result in higher latency for an \textit{individual} operation than an individual single-dispatch operation.
+% But, they unlock parallelism that yields lower end-to-end application latency as the number of concurrent operations grows.
+% \wl{I'm not sure this makes sense for the intro, better to leave to second 2 maybe?}
+
+
+To demonstrate the performance benefits offered by MD-Linearizeability,
+we implement and evaluate Ellis in single data center and wide-area environments.
+Compared to Multi-Paxos~\cite{lamport1998paxos}, we find Ellis
+reduces end-to-end application latency by up to 75\% in a single datacenter and up to \tbd{XX\%} in the wide-area.
+\true{These largest latency improvements come at the cost of lower throughput for \sys{}.
+When both systems use batching, however,
+we find \sys{} achieves throughput parity with Multi-Paxos
+while still providing \tbd{xx--yy\%} and \tbd{aa--bb\%} lower latency.}
+
+%Due to
+%additional messages, however, this comes at the cost of about 1/2 the
+%maximum throughput.
 In summary, this paper makes the following contributions:
+
 \begin{itemize}[leftmargin=*]
-\item The definition of \mdllong{}.
-\item A proof of external equivalence between an application running on \sdl{} and a transformation of it running on \mdl{}.
-\item The first protocol for cross-shard \mdl{}: \sys{}.
-\item An implementation and evaluation of \sys{} that shows it approaches a 75\% reduction in latency for applications compared to a Linearizable baseline as fanout increases.
+\item The definition of \mdl{}, a Linearizability-like consistency model that allows applications use multi-dispatch for lower latency.
+\item A proof of external equivalence between an application running on \sdl{} and a transformation of it running on \mdl{}, allowing programmers to reason only about Linearizability while using multi-dispatch.
+\item The design, implementation, and evaluation of the first protocol for cross-shard MD-Linearizability, \sys{}, which provides substantially lower end-to-end latency for applications than a Linearizable baseline.
+%\item An implementation and evaluation of \sys{} that shows it approaches a 75\% reduction in latency for applications compared to a Linearizable baseline as fanout increases.
 \end{itemize}
+
+
+\wl{No discussion of systems / consistency models / etc here, does that make sense? Do we need to set the stage anymore or is it sufficiently obvious its unnecessary?}
+
+
+\wl{There was an unfilled in citation here to app framework that limit apps to 1 outstanding request at a time, that would be awesome to include if its real... and for linearizable (i.e., not transactional) backends}
+
+\wl{Here are other things from Anja's version that would be nice to include:
+* In fact, many application development frameworks do not have APIs that even allow more than a single backend request to be sent at once or asynchronous versions of operations~\cite{}\\
+* Getting it right can be tricky, and often misuse of parallelism is a source for many complex bugs ~\ref{}\\
+* Moreover, real systems require constant reevaluation of these code designs, since code is frequently being rewritten and what is safe in some version might become unsafe in future versions, which might even depend on changes made to external services an application interacts with.\\
+* Furthermore, these challenges are only exacerbated in the wide-area setting, which is increasingly trending as more and more application topologies place clients at the edge ~\cite{}. Punting on potential concurrency is not an option as wide-area latencies from single-dispatch sequential client behavior destroy end-to-end application performance.}
+
+\wl{suffix-closed failure is neat and definitely not something discussed by A-Linearizability...}
+
+\wl{Should we talk about the application itself being concurrent or not?}
+
+\todo{I cut the discussion of A-Linearizability and session guarantees here. We shoudl discuss them somewhere but I don't think they are intro-worthy}
+% \Mdl{} builds on earlier work, such as A-Linearizability introduced by Zookeeper~\cite{hunt2010zookeeper} and session guarantees~\cite{terry1994session}, for intuitively allowing multiple client operations.
+% \Mdl{} is distinct from this earlier work because it targets providing Linearizability-like consistency for all operations, is formally specified, and introduces suffix-complete failure semantics.
+% We argue these make it a natural and elegant extension of Linearizability for multi-dispatch.
+% \wl{We need a detailed comparison with A-Linearizability and session guarantees. An explicit discuss of suffix-closed failures would be useful}
+% \wl{suffix-closed or suffix-complete?}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+%%%%%%% Anja's Version of why not broken and single dispatch %%%%%%%%%
+% % <talk about how single-dispatch is limiting -- why would you sometimes want to have concurrency within a single client? disucss temporal dependencies>
+% This single-dispatch restriction to Linearizeability is particularly limiting when clients wish to concurrently interact with disjoint data objects and meet correctness guarantees for those updates to take place, or in other words, when clients have temporal dependencies. As a simple example, consider when a social media user wishes to make a post about looking for a new job, but first wishes to remove their employer from their friends list. The friends list and posts list are two separate objects, but the clients needs modifications to each to occur in a specific order: removing the employer and then making the post is the only correct behavior.
+% \wl{New example here and in the last sentence below?}
+
+% % <discuss what the options are now for achieving concurrency within a client - slow sequential or fast but not linearizeable(naive thing)?>
+% With the traditional definition of \lin, clients are forced to choose between two dissatisfying options. If an application is restricted to single-dispatch when run on a Linearizable system, it gets the guarantees of \lin but loses out on the potential latency improvements
+% from concurrency, since each request must wait for its predecessor to fully complete before being issued. In fact, many application development frameworks do not have APIs that even allow more than a single backend request to be sent at once or asynchronous versions of operations~\cite{}.
+% On the other hand, if an application
+% issues multiple concurrent operations against a Linearizable system, it gets the latency improvements from concurrency but can no longer rely on \lin{}'s guarantees for correctness.
+% Under this behavior the user in our example might see their post written before the employer is removed from their friends list. 
+
+% % <Talk about how definitely there are times where the naive thing is great and what you want! we want to parallelize. but getting that right is pretty hard too>
+% While these two practices are limiting in cases when a client has temporal dependencies and could benefit to multi-dispatch requests, they are fitting in specific scenarios depending on the needs of the application. On the one hand, when client operations contain data dependencies, it must issue requests sequentially, and on the other hand, when there are no dependencies or ordering requirements between operations, it is safe to issue them in parallel from separate virtual clients.
+
+% However, identifying these cases and how to structure optimal code design for them is very challenging. Getting it right can be tricky, and often misuse of parallelism is a source for many complex bugs ~\ref{}. $\langle$ \texttt{probably going to include more discussion of a bug example.}$\rangle$ Moreover, real systems require constant reevaluation of these code designs, since code is frequently being rewritten and what is safe in some version might become unsafe in future versions, which might even depend on changes made to external services an application interacts with.
+
+% Furthermore, these challenges are only exacerbated in the wide-area setting, which is increasingly trending as more and more application topologies place clients at the edge ~\cite{}. Punting on potential concurrency is not an option as wide-area latencies from single-dispatch sequential client behavior destroy end-to-end application performance.
+
+%%%%%%% %%%%%%%%%%%%% %%%%%%%%%
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+% Linearizability is one of the most widely used consistency models.
+% It is provided by Paxos~\cite{lamport1998paxos}, RAFT~\cite{ongaro2014raft}, and PBFT~\cite{castro1999pbft} among many others.
+% Linearizability has the same guarantees as a single machine that processes operations one at a time in the order it receives them over a network.
+% This makes it a `strong' consistency model that has intuitive behavior for programmers to reason about.
+
+% But Linearizability was defined 36 years ago~\cite{herlihy1990linearizability,herlihy1987linearizability} and thus predates many developments and trends in computing.
+% One major trend is the use of \textit{multi-dispatch}, i.e., application processes concurrently dispatch multiple operations in an effort to
+% decrease application latency.
+% Linearizability explicitly disallows this behavior and instead requires \textit{single-dispatch}, where a client process may only have one outstanding operation at a time.
+
+% This mismatch yields two unfortunate possibilities:
+% If an application is restricted to single-dispatch when run on a Linearizable system, it gets the guarantees of Linearizability but loses out on the latency improvements from concurrency.
+% On the other hand, if an application issues multiple concurrent operations against a Linearizable system, it gets the latency improvements from concurrency but the guarantees from Linearizability are lost.
+% \wl{Is this punchy enough about what is lost? }
+
+% This paper introduces \mdllong{} (\mdl{}), a consistency model similar to Linearizability that allows concurrent client operations and respects a client's \textit{issue order} over them:
+% if a client issues operation one operation and then issues another before the first returns, then it must appear to all clients that the first operation takes effect before the second.
+% \Mdl{} builds on earlier work, such as A-Linearizability introduced by Zookeeper~\cite{hunt2010zookeeper} and session guarantees~\cite{terry1994session}, for intuitively allowing multiple client operations.
+% \Mdl{} is distinct from this earlier work because it targets providing Linearizability-like consistency for all operations, is formally specified, and introduces suffix-closed failure semantics 
+% We argue these make it a natural and elegant extension of Linearizability for multi-dispatch.
+% \wl{We need a detailed comparison with A-Linearizability and session guarantees. An explicit discuss of suffix-closed failures would be useful}
+
+% %* in this paper we modernize linearizability by introducing multi-dispatch linearizability\\
+% %** linearizability where clients can have many outstanding operations and operations are ordered by the system in the order they are issued\\
+% %** builds on intuition developed by earlier work such a zookeeper's a-linearizability or the combination of session guarantees and linearizability\\
+% %** contribution is a formal definition of multi-dispatch linearizability that makes the contract between systems and applications clear\\
+% %*** first model to precisely capture this for all operations? (unlike a-linearizability)\\
+% %*** for instance, suffix-failure semantics\\
+% %** In turn, this formal model allow us to study \mdl\\
+
+% New consistency models typically require programmers learn about a new set of potential behaviors from a system and learn how to reason about them correctly.
+% Instead of requiring this heavy lift from programmers, we allow them to instead reason about Linearizability, which they are familiar with and which is relatively simple to reason about.
+% This is possible because we identify a sufficient set of conditions for transforming a single-dispatch program, $A$, into a multi-dispatch program $A^\prime$ that we prove is \textit{externally equivalent} to $A$, i.e., external observers cannot tell the difference between $A$ running on a (single-dispatch) Linearizable system and a $A^\prime$ running on a
+%  \mdl{} system.
+% Thus programmers can specify and reason about their program as they currently do and then apply our simple transformations to take advantage of the latency benefits of \mdl{} while knowing their program will behave in the same way.
+% \wl{Is this punchy enough? knowing it will behave in the same way feels wimpy, if it was correct before then its now concurrent and correct!}
+
+% %* with the greater power for programmers and the possibility of parallel operations from a single client comes a new responsibility to implement these new constraints in underlying systems
+
+% We find that some existing designs provide \mdllong{} for a single shard~\cite{ongaro2014consensus}, but to the best of our knowledge, no existing designs provide it for multiple shards.
+% There are three challenges in providing \mdl{} across shards:
+% (1) ensuring operations are ordered across shards in the order the client issued them,
+% (2) ensuring suffix-closed failure semantics,
+% and
+% (3) providing lower end-to-end latency than sequential single-dispatch Linearizable operations.
+% \wl{Suffix-closed failure semantics is mentioned here but never described, that's confusing.}
+% \wl{Is the third challenge a real challenge? Are these really even challenges? The first two are required for MDL and the third is a performance goal. Hmm. Start of next paragraph isn't great either, rewrite!}
+
+% We present \sys{}, the first protocol to achieve all of these and thus
+% provide multi-shard \mdl{}.
+% \Sys{}'s design provides low end-to-end latency through a careful separation of concerns that minimizes the amount of sequential coordination necessary between concurrent operations from a client.
+% Each operation is made fault tolerant using Paxos~\cite{lamport1998paxos} as soon as it arrives at its shard.
+% The latency from Paxos's replication is a significant portion of each operation and this design enables it to happen fully in parallel.
+% After an operation is made fault tolerant, a single coordination message is sent from this shard leader to the shard leader of the client's next operation.
+% These coordination messages form a transitive chain that \sys{} uses to ensure operations appear in their issue order and to enforce suffix-closed failure semantics.
+% %These messages are also the only sequential component of coordination
+
+
+
+
+% %The sequential component of this coordination has only a single shard-leader-to-shard-leader message on path between each operation and its issue-order predecessor
+
+% % This sequential coordination is key to enforcing both the client issue order and the suffix-closed failure semantics:
+% % a client's later operation will only be ordered and thus executed if the preceding operation has been successfully replicated and coordinated.
+
+
+% The two phases require more messages and result in higher latency for an \textit{individual} operation than an individual single-dispatch operation.
+% But, they unlock parallelism that yields lower end-to-end application latency as the number of concurrent operations grows.
+
+% % sdl:
+% % client -> leader
+% % leader -> replica
+% % replica -> leader
+% % leader -> client
+% %
+% % 4 one-way delays with replication per OP.
+% % 4N latency for N ops
+
+% % mdl:
+% % client -> leader               client -> prev_op_leader (for all ops at once)
+% % leader -> replica              
+% % replica -> leader (committed)
+% %                                prev_op_leader -> leader (coordinated)
+% %                                prev_op_leader -> leader (coordinated) ... N-1 of these
+% %                                leader -> replica
+% %                                replica -> leader
+% %                                leader -> client
+% % 4 N latency for 1 op
+% % 6 + N latency for N ops
+
+
+% To demonstrate the performance benefits offered by \MDL{},
+% we implement and evaluate \sys{} in a data center environment.
+% Compared to Multi-Paxos~\cite{lamport1998paxos}, we find \sys{}
+% reduces end-to-end application latency by up to 75\%. Due to
+% additional messages, however, this comes at the cost of about 1/2 the
+% maximum throughput.
+
+% In summary, this paper makes the following contributions:
+% \begin{itemize}[leftmargin=*]
+% \item The definition of \mdllong{}.
+% \item A proof of external equivalence between an application running on \sdl{} and a transformation of it running on \mdl{}.
+% \item The first protocol for cross-shard \mdl{}: \sys{}.
+% \item An implementation and evaluation of \sys{} that shows it approaches a 75\% reduction in latency for applications compared to a Linearizable baseline as fanout increases.
+% \end{itemize}

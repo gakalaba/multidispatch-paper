@@ -5,5 +5,5 @@
   application's end-to-end latency. But clients that do not behave sequentially (e.g., to get lower latency) are not guaranteed a linearizable ordering over their operations, breaking linearizability's easy-to-reason-about semantics.
   
   In this paper, we introduce \Multidispatch{} Linearizability (\md{}), a new consistency model that extends Linearizability 
-  to explicitly allow individual clients to issue concurrent operations. Removing this constraint in \md{} improves application latency while guaranteeing a linearization that respects each client's issue order. To demonstrate this, we also design, implement, and evaluate \sys{}, the first multi-shard system to guarantee \md{}. We demonstrate \sys{} can reduce application latency by up to 75\%.
+  to explicitly allow individual clients to issue concurrent operations. Removing this constraint in \md{} improves application latency while guaranteeing a linearization that respects each client's issue order. To demonstrate this, we also design, implement, and evaluate \sys{}, the first multi-shard system to guarantee \md{}. We demonstrate \sys{} can reduce application latency by up to 75\% and \true{90\%} in single and multi-datacenter settings respectively.
 \end{abstract}

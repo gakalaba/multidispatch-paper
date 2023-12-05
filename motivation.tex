@@ -1,115 +1,132 @@
 \section{Background \& Motivation}
 
-In this section, we first provide the necessary background on 
+\stale{In this section, we first provide the necessary background on 
 distributed applications and the motivating example that we will
 use throughout the paper. We then motivate the need for our
-new consistency model and system.
+new consistency model and system.}
 
-\subsection{Distributed Applications}
+\paragraph{Background and Terminology.}
+We consider here the common model of an application that stores its shared state in a separate backend system.
+Users interact with the application by sending \textit{requests}, e.g., a HTTP request, to \textit{application processes} that implement the application logic. The application processes are stateless and there can be many of them concurrently processing requests on behalf of many users. Application processes send \textit{operations} to a backend \textit{system} that provides the concurrent application processes with access to shared, persistent state.
 
-A distributed application comprises two components: Users
-interact with the application by sending messages to
-\textit{application processes}, for instance, by submitting
-an HTTP request. In response, the 
-processes may perform local computation, exchange messages, or
-interact with a back-end \textit{system}.
+\wl{Do we need or want to say anything about processes can exchange messages?}
 
-Such systems, such as databases or key-value stores, are typically
-located within the same (or a nearby) data center as the application 
-processes. They are designed to handle the challenges of
-programming in distributed environments, such as fault-tolerance.
 
-\subsection{Motivating Example: Photo-Sharing App}
+An application's processing of a user's request will result in some number of operations to the backend system, which we refer to as the request's \textit{fanout}. Our goal is to minimize the \textit{end-to-end latency} of an application processing a user's request. For instance, a user request that result in 100 operations has a fanout of 100 and we are trying to minimize the latency of the totality of these operations.
 
-Throughout the paper, we consider a simple but illustrative
-example: a photo-sharing application. The application allows
-users to upload and share their photos with other users.
-
-In our example application, photos are organized into
-albums. Both photos and albums are stored in a distributed,
-linearizable~\cite{herlihy1990linearizability} key-value store
-using a unique key. A photo's key maps to a binary blob, and
-an album's key maps to structured data containing the keys of
-all of its photos. If a key is read but is not present, the
-key-value store returns \texttt{null}.
-
-When a user uploads $N$ photos to an album, a Web server
-issues $N+1$ operations: First, it inserts $N$ key-value
-pairs, one for each photo. Second, it issues a read-modify-write
-to append the new photos' keys to the album. To handle a request to
-view an album, a Web server first reads the album's key and subsequently
-reads (one at a time) each of its photo's binary blob before
-returning the aggregated contents to the user.
-
-% \wl{this example app is okay, but hopefully we can come up with a better one. This one isn't ideal because storing blob bodies in the data store is normal at small scale but unusual at large scale (where there are specific blob stores) and returning them in line is particularly unusual}
-% \wl{ideally the example would not be based on existence of an object, which is easy for apps to fix with a retry loop}
-
-\subsection{Consistency Models \& App Latency}
-
+A system's \textit{consistency model} provides guarantees about the observable return values for a set of operations.
 Programmers rely on a system's consistency model while building their applications. By defining the system's set of allowed behaviors, a consistency model permits programmers to ignore the system's implementation and instead focus on ensuring their applications are correct given these behaviors.
+
+\paragraph{Linearizability is a nearly ideal consistency model.}
+\textit{Linearizability} is a 'strong' consistency model that the return values for operations to a system are equivalent to some sequential ordering of them and that the ordering respects real-time precedence so that if one operation finishes before another begins the former operation must be ordered before the later~\cite{herlihy1987linearizability, herlihy1990linearizability}.
+Its strong guarantees make it simple for application programmers to reason about. It reduces the behavior of a complex, highly concurrent distributed system to the equivalent of a single machine that processes operations one at time (ensured by the sequential ordering) in the order they arrive over the network (ensured by the real-time ordering). 
+
+Linearizability is one of handful of dominant consistency models and is the consistency model provided by many fundamental protocols---e.g., Paxos~\cite{lamport1998paxos}, RAFT~\cite{ongaro2014raft}, PBFT~\cite{castro1999pbft}---and the many foundational systems that implement them---e.g., Chubby~\cite{chubby}, ZippyDB~\cite{zippydb}, etcd~\cite{etcd}.
+%ABD~\cite{abd}, primary-backup~\cite{primary-backup}, etc.\@---
+
+\paragraph{Linearizability's single-dispatch slows down applications.}
+Despite its many virtues, Linearizability imposes one major restriction on application processes, they must be \textit{single-dispatch}, i.e., they can only have one outstanding operation at a time. Thus while Linearizability permits concurrency between different processes it disallows it within a given process. This restriction was quite reasonable 36 years ago when Linearizability was introduced and \true{accurately captured its target domain of sequential processes running on multiprocessor accessed shared memory}. For modern applications that run in a distributed setting, however, this restriction has major implications for application latency.
+
+\wl{This would be the place to talk about application processing becoming concurrent if we're going to do that.}
+
+Consider an application request with fanout 100, it is required to wait sequentially for each previous operation to finish before it dispatches the next operation. This results in much higher latency than dispatching the operations in parallel. For instance, if each operation takes 5\,ms then single-dispatch results in a latency of 500\,ms compared to the multi-dispatch latency of 5\,ms.
+
+Modern applications can easily have fanouts of 10, 100, or even 1000. For instance, Meta reports that processing a user's Web request can result in thousands of system interactions~\cite{ajoux2015challenges}.
 
 % \wl{It would be great to include an additional example of many system interactions beyond the Facebook paper, especially if it wasn't from a hyperscaler}
 % Jeff: I managed to add another in Jeff Dean's Tail at Scale but
 % didn't find any from non-hyperscalar.
+\wl{Should also cite and mention the dean2013tail paper to support this}.
 
-Existing consistency models, however, are increasingly insufficient for modern Web applications as they grow in scale and complexity. For example, Meta reports that processing a user's Web request can result in thousands of system interactions, with dozens of operations on the critical path \cite{ajoux2015challenges,dean2013tail}. But many consistency models assume application processes have at most one outstanding operation to the system at a time \cite{ahamad1995causal,herlihy1990linearizability}. Thus, a Web server that obeys this assumption and issues dozens of operations sequentially
-(e.g., if a user uploads multiple photos in our example application)
-will incur significant application latency.
+\wl{What should we say about processing time? Should we mention it and say we ignore it here for ease of exposition? Or should we include it?}
 
-\subsection{Naive Parallelization Is Error-Prone}
 
-Programmers can modify their applications to issue system operations concurrently
-and thus reduce application latency. But doing so violates one of the consistency
-model's assumptions, potentially causing unspecified system behavior,
-which in turn may break their application.
 
-\begin{figure}[tbp]
-\centering
-\subfloat[Single Dispatch]{
-  \includegraphics[scale=.45,page=1]{figs/motivation_figs.pdf}
-  \label{fig:motivation:sdl}
-}
-\hfill
-\subfloat[Naive \Multidispatch{}]{
-  \includegraphics[scale=.45,page=2]{figs/motivation_figs.pdf}
-  \label{fig:motivation:naive}
-}
-\caption{
-A comparison of our example application when used with a
-\singledispatch{} linearizable key-value store and a naive
-attempt to introduce \multidispatch{}.
-}
-\label{fig:motivation}
-\end{figure}
+\paragraph{Naive Parallelization is Error-Prone.}
+Programmers can get around the single-dispatch limitation of Linearizability by simply dispatching operations concurrently.
+This reduces application latency but because it violates the assumptions of Linearizability it means the programmer can no longer rely on its guarantees. Concurrently dispatched operations have no ordering guarantees between them so now the programmer must reason about all the potential interleavings of all the potentially concurrent operations to make sure they are safe. This violates the fundamental purpose of strong consistency models, which is to make the behavior of the system easy to reason about correctness.
 
-This problem is illustrated in Figure~\ref{fig:motivation}. We
-show a user $W$ uploading two photos to an album $A$. At the same time, a
-second user $R$ attempts to view the album. On the left, we show the
-resulting Web server interactions with a linearizable key-value server $S$.
-Because the key-value store guarantees
-linearizability~\cite{herlihy1990linearizability} and $W$ issues the
-two inserts and append sequentially, then a photo's blob will
-always exist in the store once its key is visible in an album.
-Thus, $R$'s second and third reads will never return \texttt{null}.
+\begin{figure*}
+\begin{subfigure}[t]{.2\linewidth}
+\begin{center}
+\begin{tabular}{ c c }
+ $p_1$ & $p_2$ \\
+ w(a=1) & r(a) \\  
+ w(b=1) & r(b)    
+\end{tabular}
+\caption{}
+\end{center}
+\end{subfigure}
+~
+\begin{subfigure}[t]{.4\linewidth}
+\begin{center}
+\begin{tabular}{ c c }
+ $p_3$ & $p_4$ \\
+ test\_and\_set(c==0?1) & test\_and\_set(c==0?2) \\  
+ test\_and\_set(d==0?1) & test\_and\_set(d==0?2)   
+\end{tabular}
+\caption{}
+\end{center}
+\end{subfigure}
+~
+\begin{subfigure}[t]{.3\linewidth}
+\begin{center}
+\begin{tabular}{ c c c }
+ $p_5$ & $p_6$ & $p_7$ \\
+ w(e=1) & w(f=1) & w(g=1) \\  
+ r(g) & r(e)    & \textcolor{gray}{r(f)}
+\end{tabular}
+\caption{}
+\end{center}
+\end{subfigure}
+~
+\begin{subfigure}[t]{.2\linewidth}
+\begin{center}
+\begin{tabular}{ c c }
+ $p_8$ & $p_9$ \\
+ w(h=1) & r(h) \\  
+ \textcolor{gray}{if(r(i) > 2):} & r(j) \\
+ w(j=1) & \\
+ \textcolor{gray}{else:} & \\
+ \textcolor{gray}{w(j=1)}
+\end{tabular}
+\caption{}
+\end{center}
+\end{subfigure}
+~
+\begin{subfigure}[t]{.2\linewidth}
+\begin{center}
+\begin{tabular}{ c c }
+ $p_{10}$ & $p_{11}$ \\
+ w(ka=1) & r(ka) \\  
+ w(kb=1) & r(kb)    
+\end{tabular}
+\caption{}
+\end{center}
+\end{subfigure}
+~
+\begin{subfigure}[t]{.2\linewidth}
+\begin{center}
+\begin{tabular}{ c c }
+ $p_{12}$ & $p_{13}$ \\
+ w(m=1) & r(n) \\  
+ w(n=1) & r(m)    
+\end{tabular}
+\caption{}
+\end{center}
+\end{subfigure}
+\caption{}
+\label{fig:naive_breaks_stuff}
+\end{figure*}
 
-On the right, we show what can happen if we naively try to issue multiple
-operations concurrently while still using a linearizable key-value store.
-The uploader $W$ can issue all three operations concurrently, and the
-viewer $R$ can issue the latter two reads concurrently (after getting the keys
-from the list returned by the first read). In both cases, we see that the
-end-to-end application latency is lower.
+Figure~\ref{fig:naive_breaks_stuff}
 
-But because the uploader issues the operations concurrently,
-their effects may appear in either order, so a photo's key may appear in an 
-album before its blob is readable. Thus, $R$'s second and third reads may now
-return \texttt{null}. The application code to view an album would therefore
-need to be fixed to handle this new case.
+Look at all these examples where stuff breaks with naive parallelization:
+-you could fix the first one or two manually, if you are really smart, but that is fragile as hell
+-little changes to the application make things that were correct now wrong
+-also include an example where a system change goes from code being correct to incorrect and you don't know because it's not part of the contract!
 
-Although the fix for our example application is relatively straightforward,
-reasoning about the system's behavior in such cases (and how it impacts application behavior)
-can quickly become complex.
-Fixing applications also forces programmers to consider the system's implementation,
-diminishing the usefulness of the consistency model.
+
 
 In the next section, we propose a new \multidispatch{} 
 consistency model, \md{}-linearizability, to remedy this 

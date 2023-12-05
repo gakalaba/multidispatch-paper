@@ -214,157 +214,153 @@ First, for all $P_i$, $\trace(\alpha) | \system(P_i)$ must be a sequence of alte
 \subsubsection{External Equivalence}
 \label{sec:equivalence:preliminaries:equivalence}
 
+Two executions, $\alpha$ and $\beta$, are
+\textit{externally equivalent} if $\alpha|U = \beta|U$. Intuitively,
+externally equivalent executions are indistinguishable to users.
+
 \subsubsection{Transformation}
 \label{sec:equivalence:preliminaries:transform}
 
-\subsection{Proof}
+A single-dispatch application $A$ must be transformed to take advantage of the benefits offered by a multi-dispatch system. We use the notation $A^\prime = \transform(A)$ to denote applying the transformation to each process within $A$, i.e., $A^\prime = \prod_i P^\prime_i = \prod_i \transform(P_i)$.
+
+We define $\transform$ as follows: We first replace all synchronous, system-facing I/O with futures. This allows operation invocations and responses to be reordered in $A$ with respect to other actions (i.e., instructions). The aim is to then move operation invocations earlier such that the application can issue multiple operations concurrently and reap the performance benefits of an MD-Linearizable system.
+To produce $A^\prime$, we then move actions in $A$ before prior actions provided $A^\prime$ maintains the following:
+
+    \textbf{(R1)} the order of data-dependent actions within each process of $A$,
+    
+    \textbf{(R2)} the control flow of each process in $A$,
+    
+    \textbf{(R3)} the issue order of $A$’s operations,
+    
+    \textbf{(R4)} the order of non-system-facing external actions in $A$, including messages to/from users and between processes,
+    
+    \textbf{(R5)} the order between a non-system-facing external actions and operation invocations (in particular, the first invocation in a sequence of operations), and
+    
+    \textbf{(R6)} the order between non-system-facing external actions and operation responses (e.g., by waiting for the successful responses of any outstanding operations before sending a message to a user).
+
+\subsection{Equivalence Proof}
 \label{sec:equivalence:proof}
 
-\begin{theorem}
-  Suppose $A$ is an IOA defining an application that interacts with a linearizable service,
-  and let $A^\prime = \transform(A)$ be the IOA defining the transformed application that
-  interacts with a comparable \multidispatch{} linearizable service. Suppose $\alpha$ is a
-  well-formed execution of $U \times C \times A^\prime$ that satisfies \multidispatch{} real-time
-  precedence, then there exists a well-formed execution $\beta$ of $U \times C \times A$ that
-  satisfies \singledispatch{} real-time precedence such that $\alpha | U = \beta | U$.
-\end{theorem}
+\begin{thm}
+ Let $A^\prime = \transform(A)$. Suppose $\alpha^\prime$ is a finite execution of $A^\prime \times C$ that satisfies multi-dispatch real-time precedence. Then there exists a single-dispatch well-formed, finite execution $\alpha$ of $A \times C$ that satisfies single-dispatch real-time precedence such that $\alpha^\prime | U = \alpha | U$.
+\end{thm}
 
 \begin{proof}
-  Let $U$, $A$, and $A^\prime$ be defined as above, and let $\alpha$ be an arbitrary,
-  well-formed execution of $U \times C \times A^\prime$ that satisfies \multidispatch{}
-  real-time precedence. We proceed by constructing $\beta$.
+  Let $A^\prime$, $A$, and $C$ be defined as above, and let $\alpha^\prime$ be an arbitrary finite execution of $A^\prime \times C$ that satisfies multi-dispatch real-time precedence.
 
-  By assumption, $\alpha$ satisfies \multidispatch{} real-time precedence, so let $S$
-  be a total order over the operations in $\alpha | A^\prime$, as guaranteed by \MDL{}.
+  The proof proceeds in three steps: First, we create an execution $\beta^\prime$ from $\alpha^\prime$ by essentially undoing the parallelizing transformation in each process's sub-execution. Second, we produce $\beta$ from $\beta^\prime$ by removing any incomplete or failed operations. Third, we produce $\alpha$ from $\beta$ by fixing the order of actions across processes to ensure $\alpha$ is well-formed and satisfies real-time precedence.
 
-  By the original restrictions on $A$ and rules 4, 5, 6, and 7 in the definition of $\transform$,
-  each $\alpha | P_i$ comprises sub-sequences of local and system-facing actions separated by
-  non-system-facing external actions. Further, by rule 5 of $\transform$, the order of the
-  non-system-facing external actions in each $\alpha | P_i$ respects the program order of the
-  original application $A$. 
+  By the assumption that $A$ only produces single-dispatch well-formed executions and rules \textbf{R4}, \textbf{R5}, and \textbf{R6} of $\transform$, $\alpha^\prime$ is multi-dispatch well-formed, so each $\alpha^\prime | P_i$ comprises sub-sequences of local and system-facing actions separated by non-system-facing external actions. Further, by \textbf{R4}, the order of the non-system-facing external actions in each $\alpha^\prime | P_i$ respects the program order of the original $A$.
 
-  We first reorder the actions in each sub-sequence of each $\alpha | P_i$ by reversing the
-  transformation, placing the local and system-facing actions such that they respect the program
-  order of $A$. More precisely, for any two actions $\pi_1$, $\pi_2$ that were reordered by $\transform$
-  such that $\pi_1$ precedes $\pi_2$ in $A$'s program order but $\pi_2$ precedes $\pi_1$ in $A^\prime$'s,
-  shift $\pi_1$ left in $\alpha$ until it precedes $\pi_2$. Let $\alpha^\prime$ be the resulting execution.
+  We first reorder the actions in each sub-sequence of each $\alpha^\prime | P_i$ to place the local and system-facing actions such that they respect $A$'s program order. More precisely, for each $\alpha^\prime | P_i$, starting with the right-most action $\pi_1$, shift $\pi_1$ left in $\alpha^\prime$ until it precedes all other actions $\pi_2$ such that $A$'s program order requires it. Let $\beta^\prime$ be the resulting execution.
 
-  By the observation about each $\alpha | P_i$ above, the order of non-system-facing external actions
-  in $\alpha^\prime$ respects $A$'s program order (because $A^\prime$'s is identical). Further,
-  each $\alpha^\prime | P_i$ now issues system operations sequentially. These operations, however,
-  may not be linearizable.
+  By assumption, $\alpha^\prime$ satisfies multi-dispatch real-time precedence, so let $<_S$ be a total order over the operations in $\alpha^\prime$ (and thus $\beta^\prime$). Observe that by the process above, each $\beta^\prime | P_i$ now issues its operations sequentially (since $A$'s program order requires it). Further, by the definition of multi-dispatch real-time precedence (in particular its suffix-closed failure semantics) all of a process's completed operations precede any incomplete or failed ones. For each $\beta^\prime | P_i$, remove any trailing system-facing actions corresponding to operations that are either failed or not present in $S$ as well as any trailing local actions to ensure it remains a valid process sub-execution. Let $\beta$ be the resulting execution.
 
-  To produce a well-formed execution $\beta$, we next let $\caused_{\alpha^\prime}$ be the set of the
-  following pairs $(\pi_i, \pi_j)$ of actions in $\alpha^\prime$:
+  Since the order of the non-system-facing external actions in each $\alpha^\prime | P_i$ already respects the program order of the original $A$, these actions are not reordered by the steps above. Thus, the order of non-system-facing actions in $\beta^\prime | P_i$ and thus $\beta | P_i$ also respects $A$’s program order. 
+
+  But $\beta$ may not satisfy real-time precedence. To remedy this and produce the needed $\alpha$, we next define an order over the actions in $\beta$ that combines the order of each process’s (now single-dispatch) sub-execution in $\beta$ with the total order of operations guaranteed by MDL from the original $\alpha^\prime$. To ensure $\alpha$ is single-dispatch well-formed, the order also preserves the order of send-to and receive-from actions used to transmit messages between processes and users.
+
+  Let $\prec_\beta$ be the transitive closure of the following pairs of actions $(\pi_i, \pi_j)$ in $\beta$:
   \begin{enumerate}
-    \item $\mathbf{<_M}$\textbf{:} $\pi_i$ is a send action for some message $M$ (between two useres,
-    from a user to a process, a process to a user, or between two processes) and $\pi_j$
-    is its corresponding receive action,
-    \item $\mathbf{<_{P_i}}$\textbf{:} $\pi_i$ precedes $\pi_j$ in some $\alpha^\prime | P_i$,
-    \item $\mathbf{<_U}$\textbf{:} $\pi_i$ precedes $\pi_j$ in $\alpha^\prime | U$,
-    \item $\mathbf{<_S}$\textbf{:} For each adjacent pair of operations $o_k$, $o_{k+1}$ in $S$, $\pi_i$ is
-    the response action of $o_k$ and $\pi_j$ is the invocation action of $o_{k+1}$, or
-    \item \textbf{Transitivity:} there exists some action $\pi_k$ such that $(\pi_i, \pi_k)$
-    and $(\pi_k, \pi_j)$ are in $\caused_{\alpha^\prime}$.
+      \item $\mathbf{\prec_{P_i}}$\textbf{:} $\pi_i$ precedes $\pi_j$ in some $\beta | P_i$,
+      \item $\mathbf{\prec_S}$\textbf{:} for each adjacent pair of operations $o_k$, $o_{k+1}$ in $S$, $\pi_i$ is the response action of $o_k$ and $\pi_j$ is the invocation action of $o_{k+1}$,
+      \item $\mathbf{\prec_M}$\textbf{:} $\pi_i$ is a send action for some message $M$ (from a user to a process, a process to a user, or between two processes) and $\pi_j$ is its corresponding receive action, or
+      \item $\mathbf{\prec_U}$\textbf{:} $\pi_i$ precedes $\pi_j$ in $\beta | U$.
   \end{enumerate}
 
-  We posit $\caused_{\alpha^\prime}$ defines an irreflexive partial order over the actions
-  in $\alpha^\prime$. Clearly it is irreflexive and transitive; we now prove it is acyclic.
+  We posit $\prec_\beta$ defines an irreflexive partial order over the actions in $\beta$. Clearly it is transitive; we now prove it is acyclic and irreflexive.
 
-  For sake of contradiction, assume $\caused_{\alpha^\prime}$ contains at least one cycle. Let
-  $\pi_1 \caused_{\alpha^\prime} \pi_2 \caused_{\alpha^\prime} \ldots \caused_{\alpha^\prime} \pi_1$
-  be one of the shortest such cycles that does not include any transitive edges.
+  For sake of contradiction, assume $\prec_\beta$ contains at least one cycle. Let $\pi_1 \prec_\beta \pi_2 \prec_\beta \ldots \prec_\beta \pi_1$ be a shortest cycle that does not contain any transitive edges.
 
-  Before proving our contradiction, we first prove several important properties of the cycle,
-  as well as two lemmas.
+  We begin by proving an important lemma (Lemma~\ref{lemma:helper2}) regarding sequences of actions connected by $\prec_\beta$. We use this lemma in the remainder of the proof.
 
-  \noindentparagraph{Property 1.} The cycle contains at least two actions.
-  This follows from the definitions of $<_M$, $<_{P_i}$, $<_U$, and $<_S$.
-
-  \noindentparagraph{Property 2.} The cycle does not contain two consecutive
-  $<_{P_i}$ edges or two consecutive $<_U$ edges. Otherwise, a shorted cycle
-  exists since $<_{P_i}$ and $<_U$ are transitive.
-
-  \noindentparagraph{Property 3.} The cycle does not contain two consecutive
-  $<_M$ edges or two consecutive $<_S$. This follows from the definitions of
-  $<_M$ and $<_S$.
-
-  \begin{lemma}
-    Let $\pi_1 \caused_{\alpha^\prime} \ldots \caused_{\alpha^\prime} \pi_n$
-    be a sequence of $n$ actions connected only by
-    $<_{P_i}$, $<_U$, and $<_S$ edges (i.e., no $<_M$ edges), and further
-    assume $\pi_1$ is a message receive action and $\pi_n$ is a message
-    send action. Then, $\pi_1 \rt_{\alpha^\prime} \pi_n$.
+  \begin{lem}
+    Let $\pi_1 \prec_\beta \ldots \prec_\beta \pi_m$ be a sequence of $m$ actions connected only by $\prec_{P_i}$ and $\prec_S$ edges, and further assume $\pi_1$ and $\pi_m$ are send-to or receive-from actions. Then $\pi_1$ precedes $\pi_m$ in $\beta$.
     \label{lemma:helper1}
-  \end{lemma}
-
+  \end{lem}
   \begin{proof}
-    TODO
+      We proceed by cases:
+
+      $\mathbf{m=2}$\textbf{.} Since they are send-to or receive-from actions, $\pi_1$ and $\pi_2$ must be connected by a $\prec_{P_i}$ edge, so $\pi_1$ precedes $\pi_2$ by the definition of $\prec_{P_i}$.
+
+      $\mathbf{m=3}$\textbf{.} By similar reasoning, the two edges must be $\prec_{P_i}$ edges for some $P_i$, so $\pi_1$ precedes $\pi_3$ again by the definition of $\prec_{P_i}$.
+
+      $\mathbf{m \geq 4}$\textbf{.} By the same reasoning, the conclusion is true if all of the edges are $\prec_{P_i}$ for some $P_i$, so assume there is at least one $\prec_S$ edge.
+      Then the sequence has the following structure:
+      $\pi_1 \prec_{P_1} \ldots \prec_{P_1} \pi_i \prec_S \pi_{i+1} \prec_{P_2} … \prec_{P_2} \pi_j \prec_S \pi_{j+1} … \pi_k \prec_S \pi_{k+1} \prec_{P_n} … \prec_{P_n} \pi_m$.
+
+      Note the first and final edges cannot be $\prec_S$ edges because by assumption $\pi_1$ and $\pi_m$ are send-to or receive-from actions.
+
+      By the definition of $\prec_S$, $\pi_i$ is a response action for some operation invoked by $P_1$. By the definition of $\prec_{P_1}$, $\pi_1$ precedes $\pi_i$ in $\beta | P_1$. Since $\alpha^\prime$ is multi-dispatch well-formed and $A$, by assumption, only produces single-dispatch well-formed executions, the reordering above to produce $\beta^\prime$ and thus $\beta$ must have maintained the relative order of $\pi_1$ (a send-to or receive-from action) and any subsequent invocation or response actions at $P_1$. It follows that since $\pi_1$ precedes $\pi_i$ in $\beta | P_1$, it must also precede $\pi_i$’s corresponding invocation $\inv(\pi_i)$ in $\beta | P_1$. Since the relative order of $\pi_1$ and $\inv(\pi_i)$ is the same in $\alpha^\prime$ and $\beta$, this implies $\pi_1$ must also precede $\inv(\pi_i)$ in $\alpha^\prime | P_1$.
+
+      By the definition of $\prec_S$, $\prec_{k+1}$ is an invocation action at $P_n$. By similar reasoning as above, we can conclude that $\pi_{k+1}$’s corresponding response $\resp(\pi_{k+1})$ must precede $\pi_m$ in $\beta | P_n$ and thus $\alpha^\prime | P_n$. Thus, we have $\pi_1$ precedes $\inv(\pi_i)$ and $\resp(\pi_{k+1})$ precedes $\pi_m$ in $\alpha^\prime$.
+
+      Now consider $\pi_{i+1} \prec_{P_2} \ldots \prec_{P_2} \pi_j$. $\pi_{i+1}$ is an invocation, and $\pi_j$ is a response. By the definition of $\prec_{P_2}$, $\pi_{i+1}$ precedes $\pi_j$ in $\beta | P_2$. Further, $P_2$’s system interactions occur sequentially in $\beta$, so $\pi_{i+1}$ must also precede $\pi_j$’s corresponding invocation in $\beta | P_2$. By \textbf{R3}, the transformation between $A$ and $A^\prime$ preserves each process’s invocation order, so this implies $\pi_{i+1}$ must precede $\pi_j$’s corresponding invocation in $\alpha^\prime | P_2$.
+
+      By the definition of MDL, the operations in $S$ respect this invocation order, too, so $\op(\pi_{i+1})$ is ordered in $S$ before $\op(\pi_j)$. We can apply the same reasoning to conclude the same about any similar sub-sequence. For example, we can conclude $\op(\pi_{j+1})$ is ordered in $S$ before $\op(\pi_k)$.
+
+      Combined with $\pi_i \prec_S \pi_{i+1}$, $\pi_j \prec_S \pi_{j+1}$, and so on, we can thus conclude that $\op(\pi_i)$ is ordered in $S$ before $\op(\pi_{k+1})$. Then it must be the case that $\inv(\pi_i)$ precedes $\resp(\pi_{k+1})$ in $\alpha^\prime$ because otherwise, by the real-time guarantees of MDL, $\op(\pi_{k+1})$ would be ordered in $S$ before $\op(\pi_i)$. Combined with the facts that $\pi_1$ precedes $\inv(\pi_i)$ and $\resp(\pi_{k+1})$ precedes $\pi_m$ in $\alpha^\prime$, we can thus conclude $\pi_1$ precedes $\pi_m$ in $\alpha^\prime$.
+
+      By this fact and the reasoning above that the order of non-system-facing external actions is preserved between $\alpha^\prime$ and $\beta$, $\pi_1$ precedes $\pi_m$ in $\beta$.
   \end{proof}
 
-  \begin{lemma}
-    Let $\pi_1 \caused_{\alpha^\prime} \ldots \caused_{\alpha^\prime} \pi_n$
-    be a sequence of $n$ actions connected any of $<_M$, $<_{P_i}$, $<_U$,
-    and $<_S$ edges, and further assume $\pi_1$ is a message receive action
-    and $\pi_n$ is a message send action. Then, $\pi_1 \rt_{\alpha^\prime} \pi_n$.
+  \begin{lem}
+    Let $\pi_1 \prec_\beta \ldots \prec_\beta \pi_m$ be a sequence of $m$ actions connected by any of $\prec_{P_i}$, $\prec_S$, $\prec_M$, and $\prec_U$ edges, and further assume $\pi_1$ and $\pi_m$ are send-to or receive-from actions. Then $\pi_1$ precedes $\pi_m$ in $\beta$.
     \label{lemma:helper2}
-  \end{lemma}
-    TODO
+  \end{lem}
+
   \begin{proof}
-    
+      Note that Lemma~\ref{lemma:helper1} proves the case where there are no $\prec_U$ or $\prec_M$ edges, so assume there is at least one such edge.
+
+      Observe that both $\prec_U$ and $\prec_M$ edges require the adjoining actions to be send-to or receive-from actions. The sequence thus comprises a set of sub-sequences connected by only $\prec_{P_i}$ and $\prec_S$ edges, starting and ending with a send-to or receive-from action, and which are joined by either a $\prec_U$ or $\prec_M$ edge. 
+	
+      Next observe that by definition, $\pi_i \prec_U \pi_{i+1}$ implies $\pi_i$ precedes $\pi_{i+1}$ in $\beta$. Similarly, by the reasoning above that $\alpha^\prime$ is multi-dispatch well-formed, the fact that $\beta$ preserved the order of non-system-facing actions in $\alpha^\prime$, and the definition of $\prec_M$, $\pi_i \prec_M \pi_{i+1}$ also implies $\pi_i$ precedes $\pi_{i+1}$ in $\beta$.
+	
+      Combining these two facts with repeated application of Lemma~\ref{lemma:helper1} (to each subsequence mentioned above), we conclude $\pi_1$ precedes $\pi_m$ in $\beta$.
   \end{proof}
 
-  We now leverage these lemmas to conclude the proof, so recall that
-  $\pi_1 \caused_{\alpha^\prime} \pi_2 \caused_{\alpha^\prime} \ldots \caused_{\alpha^\prime} \pi_1$
-  is a shortest cycle. We proceed by cases:
+  We now continue the proof the main theorem. Recall we have a shortest cycle
+  $\pi_1 \prec_\beta \pi_2 \prec_\beta \ldots \prec_\beta \pi_1$ that does not contain any transitive edges,
+  and we aim to derive a contradiction. We note three properties of this cycle: 
+  \begin{enumerate}
+      \item The cycle contains at least two actions. This follows from the definitions of $\prec_{P_i}$, $\prec_S$, $\prec_M$, and $<_U$.
+      \item The cycle does not contain two consecutive $\prec_{P_i}$ edges nor two consecutive $\prec_U$ edges. Otherwise, a shorter cycle exists since $\prec_{P_i}$ and $\prec_U$ are transitive.
+      \item The cycle does not contain two consecutive $\prec_M$ edges nor two consecutive $\prec_S$. This follows from the their definitions.
+  \end{enumerate}
+  Based on these three properties, we can finish the proof by cases:
 
-  First, assume the cycle contains at least one $<_M$ edge. Then the cycle can be written as
-  $\pi_1 <_M1 \pi_2 \caused_{\alpha^\prime} \ldots \pi_2 \caused_{\alpha^\prime} \pi_n \pi_2 \caused_{\alpha^\prime} \pi_1$ 
-  by re-indexing the actions as needed. By the assumption that $\alpha$ is well-formed,
-  the fact that $\alpha^\prime$ preserved the order of $\alpha$'s non-system-facing actions,
-  and the definition of $\pi_1 <_M \pi_2$, it is clear that $\pi_1 \rt_{\alpha^\prime} \pi_2$.
-  But $\pi_2 \caused_{\alpha^\prime} \ldots \pi_2 \caused_{\alpha^\prime} \pi_n \pi_2 \caused_{\alpha^\prime} \pi_1$
-  is a sequence of actions connected by $<_M$, $<_{P_i}$, $<_U$, and $<_S$ edges
-  starting with a receive action ($\pi_2$) and ending with a send action ($\pi_1$),
-  so by Lemma~\ref{lemma:helper2}, $\pi_2 \rt_{\alpha^\prime} \pi_1$, which is a contradiction.
+  \noindent \textbf{The cycle contains at least one $\mathbf{\prec_M}$ edge.}
+  The cycle can be written as $\pi_1 \prec_M \pi_2 \prec_\beta \ldots \prec_\beta \pi_m \prec_\beta \pi_1$ by re-indexing the actions as needed. By the observation that $\alpha^\prime$ is multi-dispatch well-formed, the fact that $\beta$ preserved the order of non-system-facing actions in $\alpha^\prime$, and the definition of $\pi_1 \prec_M \pi_2$, $\pi_1$ must precede $\pi_2$ in $\beta$.
 
-  Now assume the cycle does not contain any $<_M$ edges. Since there are no messages in
-  the cycle, there are two sub-cases: the cycle comprises either only $<_U$ edges or alternating
-  $<_{P_i}$ and $<_S$ edges (by Properties 2 and 3).
+  But the remainder of the cycle $\pi_2 \prec_\beta \ldots \prec_\beta \pi_1$ is a sequence of actions connected by $\prec_{P_i}$, $\prec_S$, $\prec_M$, and $\prec_U$ edges starting with a receive-from action ($\pi_2$) and ending with a send-to action ($\pi_1$). Thus, by Lemma~\ref{lemma:helper2}, $\pi_2$ precedes $\pi_1$ in $\beta$, a contradiction.
 
-  In the former case, a cycle contradicts the definition of $<_U$, so we turn to the latter.
-  Note that all $P_i$ in the $<_{P_i}$ must be distinct, otherwise a shorter cycle must exist.
-  For each $\pi_i <_{P_i} \pi_{i+1}$, we know that $\pi_i$ is an invocation action and
-  $\pi_{i+1}$ is a response action. Further, by similar reasoning as in Lemma~\ref{lemma:helper1},
-  we know that $\op(\pi_i)$ must precede $\op(\pi_{i+1})$ in $S$. Thus, for each $\pi_i <_{P_i} \pi_{i+1}$,
-  we can expand it to include the invocations and responses of all operations in $S$ between $\op(\pi_i)$
-  and $\op(\pi_{i+1})$ (if any). This (no longer shortest) cycle implies there is a cycle
-  over operations in $S$. But this contradicts the definition of \MDL{}, which guarantees a total order
-  over all operations and which was used to instantiate $S$. Thus, $\caused_{\alpha^\prime}$ is acyclic,
-  and combined with the definitions of $<_M$, $<_{P_i}$, $<_U$, and $<_S$, this also shows
-  it is irreflexive.
+  \noindent \textbf{The cycle contains at least one $\mathbf{\prec_U}$ edge.}
+  We employ similar reasoning as in the case above. The cycle can be written as $\pi_1 \prec_U \pi_2 \prec_\beta \ldots \prec_\beta \pi_m \prec_\beta \pi_1$. By the definition of $\prec_U$, $\pi_1$ precedes $\pi_2$ in $\beta$.
 
-  Let $\beta$ be a topological sort of $\caused_{\alpha^\prime}$ on the actions in
-  $\alpha^\prime$. To conclude the proof, we show $\beta$ is well-formed,
-  satisfies \singledispatch{} real-time precedence, and is externally equivalent to $\alpha$.
+  Since users interact with processes using channels, $\pi_2$ and $\pi_1$ are either receive-from or send-to actions, so by Lemma~\ref{lemma:helper2}, we again reach a contradiction.
 
-  The fact that $\beta$ is a well-formed execution of $U \times C \times A$ follows
-  from the definition of $\caused_{\alpha^\prime}$. It preserves the order of actions
-  in $U$, which were unaltered in the transformation from $\alpha$ to $\alpha^\prime$.
-  Similarly, it preserves the order of each message's send-to and receive-from actions,
-  and their order was also unaltered in producing $\alpha^\prime$. Finally, the original
-  transformation to $\alpha^\prime$ placed the actions of eacch $\alpha^\prime | P_i$ in
-  the order dictated by $A$'s program order, and this was preserved by
-  $\caused_{\alpha^\prime}$ in producing $\beta$.
+  \noindent \textbf{The cycle contains neither $\mathbf{\prec_M}$ nor $\mathbf{\prec_U}$ edges.}
+  By properties 2 and 3 above, the cycle comprises alternating $\prec_{P_i}$ and $\prec_S$ edges. Also, since they alternate with $\prec_S$ edges, for each $\pi_i \prec_{P_i} \pi_{i+1}$, we know $\pi_i$ is an invocation and $\pi_{i+1}$ is a response.
 
-  By the initial reordering of to produce $\alpha^\prime$ and the definition of
-  $\caused_{\alpha^\prime}$, the system-facing actions are now \singledispatch{} in $\beta$.
-  In fact, by the defintion $\caused_{\alpha^\prime}$, accesses are now sequential
-  (across all processes) in the order defined by $S$. Since $S$ defined a total order over all
-  operations, $\beta$ thus satisfies \singledispatch{} real-time precedence.
+  By the definition of $\prec_{P_i}$, $\pi_i$ precedes $\pi_{i+1}$ in $\beta | P_i$. Since each process’s system interactions occur sequentially in $\beta$, $\pi_i$ must also precede $\pi_{i+1}$'s corresponding invocation.
 
-  Finally, since the initial transformation from $\alpha$ to $\alpha^\prime$ did not alter
-  the order of actions in $U$, clearly $\alpha | U = \alpha^\prime | U$. Then by the defintion
-  of $\caused_{\alpha^\prime}$, $\alpha^\prime | U = \beta | U$. Thus, $\beta$ is externally
-  equivalent to $\alpha$.
+  Since the transformation between $A$ and $A^\prime$ preserves each process’s invocation order and so does multi-dispatch real-time precedence, this implies $\op(\pi_i)$ is ordered in $S$ before $\op(\pi_{i+1})$.
+
+  As a result, for each $\pi_i \prec_{P_i} \pi_{i+1}$ in our cycle, we can replace it with a sequence of $\prec_{P_i}$ and $\prec_S$ edges that includes the invocations and responses of all operations in $S$ between $\op(\pi_i)$ and $\op(\pi_{i+1})$, if any. This (no longer shortest) cycle implies there is a cycle over operations in $S$. But this contradicts the definition of $S$, which is a total order.
+
+  Thus, $\prec_\beta$ is acyclic. Combined with the definitions of $\prec_{P_i}$, $\prec_S$, $\prec_M$, and $\prec_U$, this also shows it is irreflexive.
+
+  Let $\alpha$ be a topological sort of $\prec_\beta$ on the actions in $\beta$. To conclude the proof, we show $\alpha$ is single-dispatch well-formed, satisfies real-time precedence, and is externally equivalent to $\alpha^\prime$.
+
+  $\alpha$ is clearly a well-formed execution of $A \times C$ because
+  (1) the order of user-facing actions is preserved by $\prec_\beta$;
+  (2) all messages are sent before being received by the definition of $\prec_\beta$; and
+  (3) the order of each process’s actions reflects $A$’s program order.
+  The last follows from the initial reordering to produce $\beta^\prime$, which is preserved in producing $\beta$, and finally, by the definition of $\prec_\beta$.
+
+  $\alpha$ also satisfies single-dispatch real-time precedence:
+  First, the system-facing actions are now single-dispatch by the initial reordering to produce $\beta$ and the definition of $\prec_\beta$.
+  Second, the system-facing invocations and responses satisfy real-time precedence. In fact, by definition of $\prec_\beta$, accesses are now sequential in the order defined by $S$.
+
+  Finally, we can see that $\alpha^\prime | U = \beta^\prime | U = \beta | U = \alpha | U$. The first equality follows from the fact that the order of user-facing actions is preserved in initial transformation to $\beta^\prime$. The second follows from the fact that no user-facing actions were removed in producing $\beta$, and finally, the last equality is preserved by definition of $\prec_\beta$ when producing $\alpha$.
 \end{proof}

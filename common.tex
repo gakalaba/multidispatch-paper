@@ -16,10 +16,12 @@
 \newcommand*{\Singledispatch}{Single-dispatch}
 \newcommand*{\multidispatch}{multi-dispatch}
 \newcommand*{\Multidispatch}{Multi-dispatch}
+\newcommand*{\lin}{linearizability}
+\newcommand*{\Lin}{Linearizability}
 
+\newcommand{\noindentparagraph}[1]{\noindent \textbf{#1}}
 
-\newcommand{\showComments}{no}
-
+\newcommand{\showComments}{yes}
 
 \newcommand{\note}[2]{
     \ifthenelse{\equal{\showComments}{yes}}{{\color{#1}[#2]}}{}
@@ -36,6 +38,7 @@
 \definecolor{rgreen}{RGB}{0, 112, 60}
 \newcommand{\tbd}[1]{\textcolor{rgreen}{#1}}
 \newcommand{\todo}[1]{\textcolor{red}{TODO: #1}}
+\newcommand{\stale}[1]{\textcolor{gray}{#1}}
 
 \ifthenelse{\not\equal{\showComments}{yes}}{%
 \renewcommand{\true}[1]{#1}
