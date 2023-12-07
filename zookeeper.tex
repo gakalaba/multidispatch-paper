@@ -1,6 +1,10 @@
 \section{\MDL{} Beyond One Shard}
 \label{sec:mdl:zookeeper}
 
+\todo{\mdl{} isn't local is part of the explanation of why there are no cross-shard implementation.}
+
+\todo{Change to 'do existing systems provide \mdl{}. Say we have a new consistency model. Do existing provide it? Surprisingly it appears single-shard implementations do not, though there is a design for it on a single shard. Then structure single-shard \mdl{} and multi-shard \mdl{}.}
+
 There are several existing systems that could be used to implement
 \multidispatch{} linearizability on a single shard. In this section,
 we briefly describe them and then show how they fail to extend to
@@ -19,6 +23,8 @@ consistency model. The authors denote it Asynchronous Linearizability
 (or A-Linearizability)~\cite{hunt2010zookeeper}. But despite its name,
 A-Linearizability differs from \MDL{} because Zookeeper allows
 reads to return stale (i.e., non-linearizable) reads.
+
+\wl{This needs to be updated to mention Diego Ongaro's dissertation as well.}
 
 \true{To handle concurrent operations from the same process, Zookeeper uses
 per-process sequence numbers.} Sequence numbers are assigned at the process 
@@ -49,6 +55,7 @@ shards. Process 1 writes $X$ then $Y$, and process 2 reads $Y$ then $X$. Suppose
 process 2's issue-order, this implies $R_2$ must be serialized after $W_1$.
 But since operations can arrive at the shards in an arbitrary order, $R_2$ may
 precede $W_1$ and return $X=0$, violating \MDL{}.
+\wl{The numbering, capitalization, etc should be unified between this example and the examples in Section 2. Maybe }
 
 %In the next section, we describe our new protocol, \sys{}, that tackles these
 %challenges and guarantees \multidispatch{} linearizability for a multi-shard

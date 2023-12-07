@@ -45,34 +45,44 @@
 \end{figure*}
 \end{comment}
 
-%TODO
-We evaluate \sys{}'s performance handling requests from multi-dispatch clients
+\stale{We evaluate \sys{}'s performance handling requests from multi-dispatch clients
 compared to Multi-Paxos's performance handling requests from single-dispatch
-clients.  We focus on measuring the performance (latency and throughput) of
-batches of requests to evaluate the impact on end-to-end application
-requests that fan out to multiple data store operations. We also evaluate how
+clients.  We focus on measuring the performance (latency and throughput) of end-to-end
+application-level requests that fan out to multiple data store operations. We also evaluate how
 \sys{} scales with the number of shards and how sensitive performance is to
-skewed workloads.
+skewed workloads.}
 %We report on both the p99 and p50 for application-request latency.
 %We find p50 a useful metric to look at since our decision to evaluate application-level requests is already end-user facing.
-We show \sys{} has lower throughput than Multi-Paxos for any particular
+This evaluation aims to answer the following questions:
+\begin{enumerate}[leftmargin=*]
+    \item How does the end-to-end application latency for \sys{} compare to Multi-Paxos in a datacenter setting?
+    \item How does it compare in a wide-area setting?
+    \item How does the throughput of \sys{} compare to Multi-Paxos, and how is that affected by batching?
+    \item How sensitive is the performance to skewed workloads?
+    \item \todo{Don't work on this yet, we'll almost certainly have to cut it for space.} What is the effect of the first-operation optimization on latency and throughput in a single-shard setting?
+\end{enumerate}
+
+\stale{We show \sys{} has lower throughput than Multi-Paxos for any particular
 number of shards but reduces end-to-end latency for application-level requests
-by up to 75\% when fanout increases and scales with the number of shards.
+by up to 75\% when fanout increases and scales with the number of shards. Moreover, we show that \sys{} significantly outperforms Multi-Paxos in a variety of wide-area configurations.}
 
 \subsection{Experimental Setup}
 All experiments ran on Cloudlab's Utah platform, using
-\texttt{m510} machines~\cite{duplyakin2019cloudlab}.  Each machine has 1 Intel Xeon-D processor with 8 physical cores
+m510 machines~\cite{duplyakin2019cloudlab}.  Each machine has 1 Intel Xeon-D processor with 8 physical cores
 running at 2 GHz (hyper-threading enabled), 64 GB of DDR4-2133 RAM, and a 10
-Gb/s NIC\@.  Our setup consists of a 9-node server cluster and 2 additional client machines.
+Gb/s NIC\@.  Our setup consists of a 9-node server cluster and 8 additional client machines.
 The round-trip latency between all machines is 150 $\mu$s.  Each shard has three replicas,
 on different physical machines. For multi-sharded experiments we place
 shard leaders on separate physical machines. Clients are distributed
 evenly across the client machines.
 
+\wl{@anja delete this after reading: the use of texttt I find to be distracting. and when it's printed out by some readers (like me at home) it looks terrible interspersed with regular text so I'm eliminating it.}
+
 We do not consider failures in this evaluation. Failures degrade performance for
 most protocols but are rare. Thus, \emph{performance} under failures is not a goal
 for either \mpaxos{} or \system{}. Section~\ref{sec:design} describes how \system{}
 handles failures.
+\wl{We can probably cut the preceding paragraph, and if we keep it this is not the right place for it. We should instead talk about it abbove in 7.0 where we talk about we do evaluate too.}
 
 
 % \al{combine experimental set-up and client design. get rid of metrics, workload,
@@ -89,7 +99,7 @@ operations concurrently, in order, waiting until all operations complete before
 issuing the next batch. Both are closed-loop clients that submit a single
 application-level request at a time.
 In each experiment, we scale the number of clients issuing requests to both
-systems from 2 to 128 by factors of 2.
+systems to show points of low load up through saturation, including from 2 to 8192 by.
 
 % \al{idk... is it worth noting? If so, not here}
 % It's worth noting that since multi-dispatch clients have $n$ requests in-flight at a time, while single-dispatch clients only have 1 request in-flight at a time, \system leaders have to deal with $n$ more requests than \mpaxos at any given time for the same number of clients.
@@ -103,7 +113,51 @@ systems from 2 to 128 by factors of 2.
 %
 %We do not vary the request type at all, all workloads are 100\% writes, since neither our protocol nor basic Paxos implement op-type specific optimizations.
 
-\subsection{Single-Shard}
+
+\subsection{Latency in a Single Datacenter}
+* Compare e2e app latency in a single datacenter setting\\
+* The latency between clients and shard leader, shard leaders and shard leaders,  and shard leaders and replicas is uniform and low\\
+
+* Main graph:\\
+* y-axis: latency (yrange starts from 0!)\\
+* x-axis: setting (fanout 1, 2, 8 (or 10), 32)\\
+* bars: show box-and-whiskers plot with (something like) p1, p10, p50, p90, p99 for ellis, and also multi-paxos\\
+* these results should be under relatively moderate load, i.e., choose the highest throughput where both systems still have pretty flat latency (so we aren't see throughput/queuing effects)\\
+* (This looks like the COPS graph I sent you on slack)\\
+
+* Interpret results \ main takeaway\\
+* fanout 1 is the same because of the optimization\\
+* fanout 2 we have a little bit lower latency, explain\\
+* fanout 10, 32 we have much lower latency, explain\\
+
+* overall conclusion:\\
+* latency is always the same when there is no potential parallelization (fanout 1) or lower when there is potential parallelization (fanout 2 or more)\\
+* as fanout increases the latency win approachs 3/4\\
+
+
+\subsection{Latency in the Wide Area}
+* Compare e2e app latency in a wide-area setting\\
+* The latency between clients and shard leader, shard leaders to shard leaders, and shard leaders and replicas is heterogenous and can be high depending on the setting\\
+** we have 3 settings:\\
+** ...
+
+* Main graph (one for each setting):\\
+* y-axis: latency (yrange starts from 0!\\
+* x-axis: setting (fanout 1, 2, 8 (or 10), 32)\\
+* bars: show box-and-whiskers plot with (something like) p1, p10, p50, p90, p99 for ellis, and also multi-paxos\\
+* these results should be under relatively moderate load, i.e., choose the highest throughput where both systems still have pretty flat latency (so we aren't see throughput/queuing effects)\\
+* (This looks like the COPS graph I sent you on slack)\\
+
+* Interpret results \ main takeaway\\
+* do for each setting in turn\\
+
+* overall conclusion:\\
+* ... \stale{latency is always the same when there is no potential parallelization (fanout 1) or lower when there is potential parallelization (fanout 2 or more)}\\
+* as fanout increases the latency win approaches (shard\_leader -> shard\_leader)/(client->shar\_leader->replica->shard\_leader->client)\\
+
+\subsection{Shard Scaling}
+\label{sec:shards}
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -112,18 +166,18 @@ systems from 2 to 128 by factors of 2.
 \begin{figure*}[tbp]
 \centering
 \subfloat[Fanout\xspace1]{
-  \includegraphics[scale=.15]{figs/1sh_f1_p99.png}
+  \includegraphics[scale=.15]{figs/old/1sh_f1_p99.png}
   \label{fig:1shardp99first}
 }
 \subfloat[Fanout\xspace10]{
-  \includegraphics[scale=.15]{figs/1sh_f10_p99.png}
+  \includegraphics[scale=.15]{figs/old/1sh_f10_p99.png}
 }
 %\hspace{0mm}
 \subfloat[Fanout\xspace100]{
-  \includegraphics[scale=.15]{figs/1sh_f100_p99.png}
+  \includegraphics[scale=.15]{figs/old/1sh_f100_p99.png}
 }
 \subfloat[Fanout\xspace1000]{
-  \includegraphics[scale=.15]{figs/1sh_f1000_p99.png}
+  \includegraphics[scale=.15]{figs/old/1sh_f1000_p99.png}
   \label{fig:1shardp99last}
 }
 \caption{p99 for single shard setting.}
@@ -155,8 +209,7 @@ request is coordinated and committed could be amortized across multiple entries
 ordered in the log. Such techniques would increase the maximum throughput of
 \protocol while maintaining gains in end-to-end latency.
 
-\subsection{Multi-Shard}
-\label{sec:shards}
+% \subsection{Multi-Shard}
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % %%%%%%%% 3 shard uniform p99 %%%%%%%%%%%
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -185,18 +238,18 @@ ordered in the log. Such techniques would increase the maximum throughput of
 \begin{figure*}[tbp]
 \centering
 \subfloat[Fanout\xspace1]{
-  \includegraphics[scale=.15]{figs/9sh_f1_p99.png}
+  \includegraphics[scale=.15]{figs/old/9sh_f1_p99.png}
   \label{fig:9shardp99first}
 }
 \subfloat[Fanout\xspace10]{
-  \includegraphics[scale=.15]{figs/9sh_f10_p99.png}
+  \includegraphics[scale=.15]{figs/old/9sh_f10_p99.png}
 }
 %\hspace{0mm}
 \subfloat[Fanout\xspace100]{
-  \includegraphics[scale=.15]{figs/9sh_f100_p99.png}
+  \includegraphics[scale=.15]{figs/old/9sh_f100_p99.png}
 }
 \subfloat[Fanout\xspace1000]{
-  \includegraphics[scale=.15]{figs/9sh_f1000_p99.png}
+  \includegraphics[scale=.15]{figs/old/9sh_f1000_p99.png}
   \label{fig:9shardp99last}
 }
 \caption{p99 for 9 shard setting.}
@@ -226,6 +279,121 @@ $n-1$ 1-way inter-shard coordination messages that must be serialized with
 predecessor fault-tolerance and coordination. On the other hand, load balancing
 of large number of requests across multiple shards helps speed the processing
 time at each leader.
+
+\subsection{Wide-Area}
+We show the results from running \sys{} in the wide area compared with Multi-Paxos in the wide area. We investigate 3 wide-area configurations, representative of real world topologies, that show the limits and benefits of using multi-dispatch over Multi-Paxos. Figure ~\ref{table:wan} shows the specifics of the topologies for each of the 3 configurations. We select a wide-area delay of 90ms between datacenters and an intra-datacenter latency of 2ms. Both of these values are representative of real-world values and provide enough contrast to highlight differences in performance ~\cite{}. \todo{Plan is to consolidate all information currently shown across 3 figures, 12 subplots, into 1 figure, Chris will work on that tomorrow.}
+
+Overall, \sys{} is a good choice for the wide-area, since it can parallelize large latencies present in various toplogies.
+
+
+\begin{table}[]
+\begin{tabular}{lllll}
+                 & \multicolumn{3}{l}{Latencies (ms)}                                        &  \\
+                 & C $\leftrightarrow$ SL & SL $\leftrightarrow$ SL & SL $\leftrightarrow$ R &  \\
+Edge Client  & 90                     & 2                       & 90                     &  \\
+Colocated Shards + Clients & 2                      & 2                       & 90                     &  \\
+Datacenter Clients + Geo-distributed Cluster  & 2                      & 90                      & 90                     & 
+\end{tabular}
+\label{table:wan}
+\caption{Latencies between protocol participants (Clients \textit{C}, Shard Leaders \textit{SL}, and Replicas \textit{R}) for each of the three wide-area configurations investigated.}
+\end{table}
+
+\subsubsection{Edge Client}
+In this configuration, clients are far from shard leaders to represent when application-level requests are issued from applications running on client edge devices, which is representative of how many applications are run today. In addition, we colocate shard leaders which significantly reduces the coordination overhead present in \sys{}.
+
+As seen in figure ~\ref{fig:wan1}, single-dispatch suffers from having sequentially pay for the large latency between edge clients and the backend. Moreover, with minimal coordination overhead for \sys{}, the latency of multi-dispatch approaches a factor of the fanout.
+\begin{figure*}[tbp]
+\centering
+\subfloat[fanout\xspace1]{
+  \includegraphics[scale=.17]{figs/wan/wide1/wide1-f1.png}
+  \label{fig:w1f1}
+}
+\subfloat[fanout\xspace2]{
+  \includegraphics[scale=.17]{figs/wan/wide1/wide1-f2.png}
+}
+\subfloat[fanout\xspace10]{
+  \includegraphics[scale=.17]{figs/wan/wide1/wide1-f10.png}
+}
+\subfloat[fanout\xspace32]{
+  \includegraphics[scale=.17]{figs/wan/wide1/wide1-f32.png}
+}
+\caption{Edge Client WAN results}
+
+\label{fig:wan1}
+\end{figure*}
+
+\subsubsection{Colocated Shards + Clients}
+\todo{Probably going to cut this ... doesn't show much new.}
+In this configuration, clients are in the datacenter and shard leaders
+\subsubsection{Edge Client}
+\begin{figure*}[tbp]
+\centering
+\subfloat[fanout\xspace1]{
+  \includegraphics[scale=.18]{figs/wan/wide2/wide2-f1.png}
+  \label{fig:w2f1}
+}
+\subfloat[fanout\xspace2]{
+  \includegraphics[scale=.18]{figs/wan/wide2/wide2-f2.png}
+}
+\subfloat[fanout\xspace10]{
+  \includegraphics[scale=.18]{figs/wan/wide2/wide2-f10.png}
+}
+\subfloat[fanout\xspace32]{
+  \includegraphics[scale=.18]{figs/wan/wide2/wide2-f32.png}
+}
+\caption{Colocated Shards+Clients WAN results}
+\label{fig:wan2}
+\end{figure*}
+
+\subsubsection{Datacenter Clients + Geo-distributed Cluster}
+In this configuration, we inspect the end-to-end performance of clients located in the datacenter, which is realistic for infrastructure applications that would benefit from the usage of multi-dispatch. Moreover, the shard leaders are not colocated, they are also geo-distributed representing the worst case coordination overhead for \sys{}.
+
+As shown in figure ~\ref{fig:wan5}, for lower fanouts that require coordination, Multi-Paxos has lower latency than \sys{}. Howeover, the performance at higher fanouts soon converges to the expected $1/4$ for \sys{}, as the client-to-backend latency adds up from single-dispatch behavior. Thus even in suboptimal topologies, \sys{} is still a good choice for applications.
+\begin{figure*}[tbp]
+\centering
+\subfloat[fanout\xspace1]{
+  \includegraphics[scale=.18]{figs/wan/wide5/wide5-f1.png}
+  \label{fig:w5f1}
+}
+\subfloat[fanout\xspace2]{
+  \includegraphics[scale=.18]{figs/wan/wide5/wide5-f2.png}
+}
+\subfloat[fanout\xspace10]{
+  \includegraphics[scale=.18]{figs/wan/wide5/wide5-f10.png}
+}
+\subfloat[fanout\xspace32]{
+  \includegraphics[scale=.18]{figs/wan/wide5/wide5-f32.png}
+}
+\caption{Datacenter Clients WAN results}
+\label{fig:wan5}
+\end{figure*}
+
+\subsection{Batching}
+We show evaluation for running \sys{} with batching enabled and compare it to Multi-Paxos with batching enabled. We implement batching using timed batching intervals that range from [250us, 500us, 750us, 1ms, 1.5ms, 2ms, 2.5ms, 3ms, 4ms, 5ms, 10ms]. For Multi-Paxos, client requests are collected for the duration of the batching interval, then all of the prepared requests are replicated together. For \sys{}, we apply this usage of batching for both rounds of the protocol, the initial replication round as well as the secondary ordering round, and use the same batching interval duration for both uses.
+
+Figure ~\ref{fig:batching} shows the results.
+
+\begin{figure*}[tbp]
+\centering
+\subfloat[mdl\xspace fanout\xspace1]{
+  \includegraphics[scale=.2]{figs/batching/mdl_f1.png}
+}
+\subfloat[mp\xspace fanout\xspace1]{
+  \includegraphics[scale=.2]{figs/batching/mp_f1.png}
+}
+\subfloat[mdl\xspace fanout\xspace10]{
+  \includegraphics[scale=.2]{figs/batching/mdl_f10.png}
+}
+
+\subfloat[mp\xspace fanout\xspace10]{
+  \includegraphics[scale=.2]{figs/batching/mp_f10.png}
+}
+\subfloat[mdl\xspace fanout\xspace100]{
+  \includegraphics[scale=.2]{figs/batching/mdl_f100.png}
+}
+\caption{Batching Experiments}
+\label{fig:batching}
+\end{figure*}
 
 \subsection{Skew}
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -293,6 +461,28 @@ high skew value of 1.3, where the tail latency for application-level requests
 starts increasing at lower percentiles, by about 2x. We notice this degradation
 begin earlier at around skew 1.1 as well. We expect much of this is due to the
 high load on the leader responsible for highly contentious keys.
+
+\subsection{Single-Shard Optimization}
+We investigate the performance of a modification to the multi-dispatch protocol optimized for the single-shard setting, and compare it with the original multi-dispatch protocol as well as multi-paxos. The main modifications include removing coordination messages and removing the 2nd “ordering” round between leaders and replicas for all requests, as the first and only round replicates both a request as well as its index in the log. We keep the sequence numbers and buffer requests that arrive out-of-order wrt to their expected next sequence number.
+\begin{figure*}[tbp]
+\centering
+\subfloat[skew\xspace0.5]{
+  \includegraphics[scale=.2]{figs/ssa/ssa_f1.png}
+  \label{fig:SSA_f1}
+}
+\subfloat[skew\xspace1.3]{
+  \includegraphics[scale=.2]{figs/ssa/ssa_f1.png}
+  \label{fig:SSA_f2}
+}
+\subfloat[skew\xspace1.3]{
+  \includegraphics[scale=.2]{figs/ssa/ssa_f1.png}
+  \label{fig:SSA_f10}
+}
+\caption{Single-Shard Optimizations for fanouts 1, 2, 10}
+\label{fig:SSA}
+\end{figure*}
+
+As shown in figure ~\ref{fig:SSA}, without the optimizations, MDL cannot offer the same performance as SDL in the single-shard setting due to the overhead of coordination requests. With the optimizations, however, MDL can provide significantly higher throughput and lower latencies than SDL.
 
 \begin{comment}
 \subsection{MDL with Geo-rep in the Wide Area}

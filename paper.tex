@@ -20,6 +20,7 @@
 %\usepackage{subfig}
 \usepackage{subcaption}
 \usepackage[font=small,skip=1pt]{caption}
+\usepackage{titling}
 
 \usepackage{algpseudocode}
 \usepackage[linesnumbered,ruled,noend]{algorithm2e}
@@ -105,9 +106,10 @@
 %-------------------------------------------------------------------------------
 
 %don't want date printed
-\date{}
+\date{\vspace{-3ex}}
+\setlength{\droptitle}{-3em}
 
-\title{\Large \bf Multi-Dispatch Linearizability Liberates Applications For Lower Latency}
+\title{\Large \bf Multi-Dispatch Linearizability Liberates Applications For Lower Latency\vspace{-1.5ex}}
 
 % %for single author (just remove % characters)
 \author{
@@ -144,7 +146,7 @@
 \clearpage
 \appendix
 \input{equivalence.tex}
-% \input{correctness.tex}
+\input{correctness.tex}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \end{document}
