@@ -189,7 +189,7 @@ automata: processes and channels. $n$ denotes the number of processes, so there 
 
 In the results below, we are interested in reasoning about the processes' external behaviors while assuming various correctness conditions of the services they interact with. Thus, we do not model services as IOA. Instead, we assume the processes interact with a service with an arbitrary type $\type$ and $\spec$ defined for $n$ processes.
 
-For each operation $o \in \ops(\type)$, process $P_i$ is then assumed to have an output action for every invocation action in $\invs(o)$ with process index $i$. Similarly, $P_i$ has an input action for every response action in $\resps(o)$ with process index $i$. We refer to these input and output actions as a process's \textit{system-facing} actions $\system(P_i)$.
+For each operation $o \in \ops(\type)$, process $P_i$ is then assumed to have an output action for every invocation action in $\invs(o)$ with process index $i$. Similarly, $P_i$ has an input action for every response action in $\resps(o)$ with process index $i$. We refer to these input and output actions as a process's \textit{system-facing} actions $\systemf(P_i)$.
 
 To model stop failures, we assume each process $P_i$ has an input
 action $\textit{stop}_i$ such that after receiving it, $P_i$ ceases taking
@@ -208,8 +208,8 @@ Let $P = \prod_{i \in I} P_i$ be the composition of the $n$ processes and
 $C = \prod_{1 \leq i \leq n} \prod_{1 \leq j \leq n} C_{ij}$ be the composition of $n^2$ channels.
 Let $\alpha$ be an execution of the distributed application $P \times C$.
 
-$\alpha$ is \textit{well-formed} if it satisfies three criteria:
-First, for all $P_i$, $\trace(\alpha) | \system(P_i)$ must be a sequence of alternating invocation and matching response actions, starting with an invocation. Second, for all $C_{ij}$, $\alpha | C_{ij}$ is well-formed. Third, for all $P_i$, $P_i$ does not take an output step while waiting for a response from some service. 
+$\alpha$ is (single-dispatch) \textit{well-formed} if it satisfies three criteria:
+First, for all $P_i$, $\trace(\alpha) | \systemf(P_i)$ must be a sequence of alternating invocation and matching response actions, starting with an invocation. Second, for all $C_{ij}$, $\alpha | C_{ij}$ is well-formed. Third, for all $P_i$, $P_i$ does not take an output step while waiting for a response from some service. We assume a single-dispatch application $A$ only allows well-formed executions.
 
 \subsubsection{External Equivalence}
 \label{sec:equivalence:preliminaries:equivalence}
@@ -242,23 +242,23 @@ To produce $A^\prime$, we then move actions in $A$ before prior actions provided
 \label{sec:equivalence:proof}
 
 \begin{thm}
- Let $A^\prime = \transform(A)$. Suppose $\alpha^\prime$ is a finite execution of $A^\prime \times C$ that satisfies multi-dispatch real-time precedence. Then there exists a single-dispatch well-formed, finite execution $\alpha$ of $A \times C$ that satisfies single-dispatch real-time precedence such that $\alpha^\prime | U = \alpha | U$.
+ Let $A^\prime = \transform(A)$. Suppose $\alpha^\prime$ is a finite execution of $A^\prime \times C$ that satisfies Multi-dispatch Linearizability. Then there exists a single-dispatch well-formed, finite execution $\alpha$ of $A \times C$ that satisfies (single-dispatch) Linearizability such that $\alpha^\prime | U = \alpha | U$.
 \end{thm}
 
 \begin{proof}
-  Let $A^\prime$, $A$, and $C$ be defined as above, and let $\alpha^\prime$ be an arbitrary finite execution of $A^\prime \times C$ that satisfies multi-dispatch real-time precedence.
+  Let $A^\prime$, $A$, and $C$ be defined as above, and let $\alpha^\prime$ be an arbitrary finite execution of $A^\prime \times C$ that satisfies Multi-dispatch Linearizability.
 
-  The proof proceeds in three steps: First, we create an execution $\beta^\prime$ from $\alpha^\prime$ by essentially undoing the parallelizing transformation in each process's sub-execution. Second, we produce $\beta$ from $\beta^\prime$ by removing any incomplete or failed operations. Third, we produce $\alpha$ from $\beta$ by fixing the order of actions across processes to ensure $\alpha$ is well-formed and satisfies real-time precedence.
+  The proof proceeds in three steps: First, we create an execution $\beta^\prime$ from $\alpha^\prime$ by essentially undoing the parallelizing transformation in each process's sub-execution. Second, we produce $\beta$ from $\beta^\prime$ by removing any incomplete or failed operations. Third, we produce $\alpha$ from $\beta$ by fixing the order of actions across processes to ensure $\alpha$ is well-formed and Linearizability.
 
   By the assumption that $A$ only produces single-dispatch well-formed executions and rules \textbf{R4}, \textbf{R5}, and \textbf{R6} of $\transform$, $\alpha^\prime$ is multi-dispatch well-formed, so each $\alpha^\prime | P_i$ comprises sub-sequences of local and system-facing actions separated by non-system-facing external actions. Further, by \textbf{R4}, the order of the non-system-facing external actions in each $\alpha^\prime | P_i$ respects the program order of the original $A$.
 
   We first reorder the actions in each sub-sequence of each $\alpha^\prime | P_i$ to place the local and system-facing actions such that they respect $A$'s program order. More precisely, for each $\alpha^\prime | P_i$, starting with the right-most action $\pi_1$, shift $\pi_1$ left in $\alpha^\prime$ until it precedes all other actions $\pi_2$ such that $A$'s program order requires it. Let $\beta^\prime$ be the resulting execution.
 
-  By assumption, $\alpha^\prime$ satisfies multi-dispatch real-time precedence, so let $<_S$ be a total order over the operations in $\alpha^\prime$ (and thus $\beta^\prime$). Observe that by the process above, each $\beta^\prime | P_i$ now issues its operations sequentially (since $A$'s program order requires it). Further, by the definition of multi-dispatch real-time precedence (in particular its suffix-closed failure semantics) all of a process's completed operations precede any incomplete or failed ones. For each $\beta^\prime | P_i$, remove any trailing system-facing actions corresponding to operations that are either failed or not present in $S$ as well as any trailing local actions to ensure it remains a valid process sub-execution. Let $\beta$ be the resulting execution.
+  By assumption, $\alpha^\prime$ satisfies MDL, so let $<_S$ be a total order over the operations in $\alpha^\prime$ (and thus $\beta^\prime$). Observe that by the process above, each $\beta^\prime | P_i$ now issues its operations sequentially (since $A$'s program order requires it). Further, by the definition of MDL (in particular, its suffix-closed failure semantics) all of a process's completed operations precede any incomplete or failed ones. For each $\beta^\prime | P_i$, remove any trailing system-facing actions corresponding to operations that are either failed or not present in $S$ as well as any trailing local actions to ensure it remains a valid process sub-execution. Let $\beta$ be the resulting execution.
 
   Since the order of the non-system-facing external actions in each $\alpha^\prime | P_i$ already respects the program order of the original $A$, these actions are not reordered by the steps above. Thus, the order of non-system-facing actions in $\beta^\prime | P_i$ and thus $\beta | P_i$ also respects $A$’s program order. 
 
-  But $\beta$ may not satisfy real-time precedence. To remedy this and produce the needed $\alpha$, we next define an order over the actions in $\beta$ that combines the order of each process’s (now single-dispatch) sub-execution in $\beta$ with the total order of operations guaranteed by MDL from the original $\alpha^\prime$. To ensure $\alpha$ is single-dispatch well-formed, the order also preserves the order of send-to and receive-from actions used to transmit messages between processes and users.
+  But $\beta$ may not satisfy Linearizability. To remedy this and produce the needed $\alpha$, we next define an order over the actions in $\beta$ that combines the order of each process’s (now single-dispatch) sub-execution in $\beta$ with the total order of operations guaranteed by MDL from the original $\alpha^\prime$. To ensure $\alpha$ is single-dispatch well-formed, the order also preserves the order of send-to and receive-from actions used to transmit messages between processes and users.
 
   Let $\prec_\beta$ be the transitive closure of the following pairs of actions $(\pi_i, \pi_j)$ in $\beta$:
   \begin{enumerate}
@@ -295,9 +295,9 @@ To produce $A^\prime$, we then move actions in $A$ before prior actions provided
 
       By the definition of $\prec_S$, $\prec_{k+1}$ is an invocation action at $P_n$. By similar reasoning as above, we can conclude that $\pi_{k+1}$’s corresponding response $\resp(\pi_{k+1})$ must precede $\pi_m$ in $\beta | P_n$ and thus $\alpha^\prime | P_n$. Thus, we have $\pi_1$ precedes $\inv(\pi_i)$ and $\resp(\pi_{k+1})$ precedes $\pi_m$ in $\alpha^\prime$.
 
-      Now consider $\pi_{i+1} \prec_{P_2} \ldots \prec_{P_2} \pi_j$. $\pi_{i+1}$ is an invocation, and $\pi_j$ is a response. By the definition of $\prec_{P_2}$, $\pi_{i+1}$ precedes $\pi_j$ in $\beta | P_2$. Further, $P_2$’s system interactions occur sequentially in $\beta$, so $\pi_{i+1}$ must also precede $\pi_j$’s corresponding invocation in $\beta | P_2$. By \textbf{R3}, the transformation between $A$ and $A^\prime$ preserves each process’s invocation order, so this implies $\pi_{i+1}$ must precede $\pi_j$’s corresponding invocation in $\alpha^\prime | P_2$.
+      Now consider $\pi_{i+1} \prec_{P_2} \ldots \prec_{P_2} \pi_j$. $\pi_{i+1}$ is an invocation, and $\pi_j$ is a response. By the definition of $\prec_{P_2}$, $\pi_{i+1}$ precedes $\pi_j$ in $\beta | P_2$. Further, $P_2$’s system interactions occur sequentially in $\beta$, so $\pi_{i+1}$ must also precede $\pi_j$’s corresponding invocation in $\beta | P_2$. By \textbf{R3}, the transformation between $A$ and $A^\prime$ preserves each process’s issue order, so this implies $\pi_{i+1}$ must precede $\pi_j$’s corresponding invocation in $\alpha^\prime | P_2$.
 
-      By the definition of MDL, the operations in $S$ respect this invocation order, too, so $\op(\pi_{i+1})$ is ordered in $S$ before $\op(\pi_j)$. We can apply the same reasoning to conclude the same about any similar sub-sequence. For example, we can conclude $\op(\pi_{j+1})$ is ordered in $S$ before $\op(\pi_k)$.
+      By the definition of MDL, the operations in $S$ respect this issue order, too, so $\op(\pi_{i+1})$ is ordered in $S$ before $\op(\pi_j)$. We can apply the same reasoning to conclude the same about any similar sub-sequence. For example, we can conclude $\op(\pi_{j+1})$ is ordered in $S$ before $\op(\pi_k)$.
 
       Combined with $\pi_i \prec_S \pi_{i+1}$, $\pi_j \prec_S \pi_{j+1}$, and so on, we can thus conclude that $\op(\pi_i)$ is ordered in $S$ before $\op(\pi_{k+1})$. Then it must be the case that $\inv(\pi_i)$ precedes $\resp(\pi_{k+1})$ in $\alpha^\prime$ because otherwise, by the real-time guarantees of MDL, $\op(\pi_{k+1})$ would be ordered in $S$ before $\op(\pi_i)$. Combined with the facts that $\pi_1$ precedes $\inv(\pi_i)$ and $\resp(\pi_{k+1})$ precedes $\pi_m$ in $\alpha^\prime$, we can thus conclude $\pi_1$ precedes $\pi_m$ in $\alpha^\prime$.
 
@@ -344,13 +344,13 @@ To produce $A^\prime$, we then move actions in $A$ before prior actions provided
 
   By the definition of $\prec_{P_i}$, $\pi_i$ precedes $\pi_{i+1}$ in $\beta | P_i$. Since each process’s system interactions occur sequentially in $\beta$, $\pi_i$ must also precede $\pi_{i+1}$'s corresponding invocation.
 
-  Since the transformation between $A$ and $A^\prime$ preserves each process’s invocation order and so does multi-dispatch real-time precedence, this implies $\op(\pi_i)$ is ordered in $S$ before $\op(\pi_{i+1})$.
+  Since the transformation between $A$ and $A^\prime$ preserves each process’s issue order and so does Multi-dispatch Linearizability, this implies $\op(\pi_i)$ is ordered in $S$ before $\op(\pi_{i+1})$.
 
   As a result, for each $\pi_i \prec_{P_i} \pi_{i+1}$ in our cycle, we can replace it with a sequence of $\prec_{P_i}$ and $\prec_S$ edges that includes the invocations and responses of all operations in $S$ between $\op(\pi_i)$ and $\op(\pi_{i+1})$, if any. This (no longer shortest) cycle implies there is a cycle over operations in $S$. But this contradicts the definition of $S$, which is a total order.
 
   Thus, $\prec_\beta$ is acyclic. Combined with the definitions of $\prec_{P_i}$, $\prec_S$, $\prec_M$, and $\prec_U$, this also shows it is irreflexive.
 
-  Let $\alpha$ be a topological sort of $\prec_\beta$ on the actions in $\beta$. To conclude the proof, we show $\alpha$ is single-dispatch well-formed, satisfies real-time precedence, and is externally equivalent to $\alpha^\prime$.
+  Let $\alpha$ be a topological sort of $\prec_\beta$ on the actions in $\beta$. To conclude the proof, we show $\alpha$ is single-dispatch well-formed, satisfies Linearizability, and is externally equivalent to $\alpha^\prime$.
 
   $\alpha$ is clearly a well-formed execution of $A \times C$ because
   (1) the order of user-facing actions is preserved by $\prec_\beta$;
@@ -358,9 +358,9 @@ To produce $A^\prime$, we then move actions in $A$ before prior actions provided
   (3) the order of each process’s actions reflects $A$’s program order.
   The last follows from the initial reordering to produce $\beta^\prime$, which is preserved in producing $\beta$, and finally, by the definition of $\prec_\beta$.
 
-  $\alpha$ also satisfies single-dispatch real-time precedence:
+  $\alpha$ also satisfies Linearizability:
   First, the system-facing actions are now single-dispatch by the initial reordering to produce $\beta$ and the definition of $\prec_\beta$.
-  Second, the system-facing invocations and responses satisfy real-time precedence. In fact, by definition of $\prec_\beta$, accesses are now sequential in the order defined by $S$.
+  Second, the system-facing invocations and responses satisfy Linearizability. In fact, by definition of $\prec_\beta$, accesses are now sequential in the order defined by $S$.
 
   Finally, we can see that $\alpha^\prime | U = \beta^\prime | U = \beta | U = \alpha | U$. The first equality follows from the fact that the order of user-facing actions is preserved in initial transformation to $\beta^\prime$. The second follows from the fact that no user-facing actions were removed in producing $\beta$, and finally, the last equality is preserved by definition of $\prec_\beta$ when producing $\alpha$.
 \end{proof}

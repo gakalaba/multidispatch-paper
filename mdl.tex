@@ -12,7 +12,7 @@ of how to transform applications and prove our equivalence result
 \subsection{Users, Applications, \& Executions}
 \label{sec:mdl:applications}
 
-We leverage the formalism used in \citeauthor{helt2021rss}~\cite{helt2021rss}. We model a
+We leverage the formalism used in RSS~\cite{helt2021rss}. We model a
 distributed \textit{application} as a set of $n$ \textit{processes}.
 Processes are state machines~\cite{lynch1987ioa,lynch1996da}
 that implement application logic by receiving messages from and sending replies
@@ -42,7 +42,8 @@ transmission. Similarly, to receive a message from $P_i$, $P_j$ first
 uses an output action $\request_{ij}$ and later, an input action
 $\receive_{ij}(m)$ occurs, signaling the receipt of $m$.
 (The formalism and proof here ignores inter-process messages for sake of brevity, but the full
-proof in Appendix~\ref{sec:equivalence} includes them.)
+proof in Appendix A includes them.)
+%Appendix~\ref{sec:equivalence} includes them.)
 
 Such modeling allows our formalism to model scenarios both where human users interact with
 directly with the application and where one application is the client
@@ -55,7 +56,7 @@ only $P_i$'s actions and the $i$th component of each state in $\alpha$.
 In a slight abuse of notation, we use $\alpha|U$ to denote the sub-sequence
 of only \textit{user-facing} external actions in $\alpha$. 
 
-\noindentparagraph{Well-formed.} A \textit{well-formed} execution
+\paragraph{Well-formed.} A \textit{well-formed} execution
 satisfies the following: (1) Messages are sent before they are received; and
 (2) While processes may have multiple outstanding $\request_{ij}$ actions
 (at one or more channels) or invocations (at the system), they may not have
@@ -101,7 +102,7 @@ invocation, and $\pi_1$ precedes $\pi_2$ in $\alpha$.
 We can also lift $\rt_\alpha$ to operations in the natural
 way.
 
-\noindentparagraph{\Multidispatch{} Linearizability.} An execution $\alpha_1$ satisfies \textit{\multidispatch{} linearizability} if it
+\paragraph{\Multidispatch{} Linearizability.} An execution $\alpha_1$ satisfies \textit{\multidispatch{} linearizability} if it
 can be extended, by adding zero or more responses, to create $\alpha_2$ such that
 there exists a sequence $S \in \spec$ where (1) for all $P$,
 $S|P = \complete(\alpha_2)||P$, and (2) for all pairs of operations
@@ -113,7 +114,8 @@ it must be consistent with each process's issue order, and second,
 it must be consistent with the real-time order of operations.
 
 \wl{Need a consistency pass to use the same suffix-closed/complete failure \{semantics\} or not everywhere}
-\subsubsection{Suffix-Closed Failures}
+%\subsubsection{Suffix-Closed Failures}
+\paragraph{Suffix-Closed Failures.}
 \label{sec:mdl:def:failures}
 
 \MDL{}'s definition has an important implication for system designers.
@@ -136,7 +138,7 @@ guaranteeing suffix-closed failures is one way in which existing systems do not 
 
 \wl{Should we punch up this discussion? I think it's a major way we're different from A-Linearizability and its necessary! For instance, we need this for our equivalence result right?! That seems important!}
 
-\subsection{Transforming Apps \& External Equivalence}
+\subsection{Transforming Applications \& \\External Equivalence}
 \label{sec:mdl:equivalence}
 
 In this section, we show how we can transform an application that interacts with
@@ -147,10 +149,12 @@ the users can tell).
 
 We first define the transformation and several preliminaries. We then
 present a condensed form of the proof that the transformation preserves external
-equivalence. (A complete proof is elided here for brevity but can be found in Appendix~\ref{sec:equivalence}.) For ease of exposition, we focus on the actions within an
+equivalence. (A complete proof can be found in Appendix A.) %~\ref{sec:equivalence}.)
+For ease of exposition, we focus on the actions within an
 execution and assume states can be modified and reordered as needed.
 
-\subsubsection{Parallelizing an Application}
+%\subsubsection{Parallelizing Applications}
+\paragraph{Parallelizing Applications.}
 \label{sec:mdl:transform}
 
 We describe how to transform an application $A$ that is built to
@@ -180,7 +184,8 @@ actions and operation invocations (in particular, the first invocation in a
 sequence of operations), and
 \textbf{(R6)} the order between non-system-facing external actions and operation responses (e.g., by waiting for the successful responses of any outstanding operations before sending a message to a user).
 
-\subsubsection{Proof of External Equivalence}
+%\subsubsection{Proof of External Equivalence}
+\paragraph{Proof of External Equivalence}
 
 Executions $\alpha$ and $\beta$ are
 \textit{externally equivalent} if $\alpha|U = \beta|U$. Intuitively,

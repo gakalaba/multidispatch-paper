@@ -28,6 +28,19 @@
 \usepackage[capitalize,noabbrev]{cleveref}
 \newcommand{\crefrangeconjunction}{--}
 
+
+\usepackage[compact]{titlesec}
+
+
+
+
+
+
+
+
+
+
+
 % Names
 % These are in common.tex
 
@@ -64,7 +77,7 @@
 \DeclareMathOperator*{\sched}{\textit{sched}}
 \DeclareMathOperator*{\trace}{\textit{trace}}
 \DeclareMathOperator*{\complete}{\textit{complete}}
-\DeclareMathOperator*{\system}{\textit{sys}}
+\DeclareMathOperator*{\systemf}{\textit{sys}}
 \DeclareMathOperator*{\user}{\textit{user}}
 \DeclareMathOperator*{\conflicts}{\mathcal{C}}
 \DeclareMathOperator*{\op}{\textit{op}}
@@ -106,18 +119,14 @@
 %-------------------------------------------------------------------------------
 
 %don't want date printed
-\date{\vspace{-3ex}}
+%\date{\vspace{-5ex}} %% MAX
+\date{\vspace{-2ex}}
 \setlength{\droptitle}{-3em}
 
-\title{\Large \bf Multi-Dispatch Linearizability Liberates Applications For Lower Latency\vspace{-1.5ex}}
+\title{\Large \bf Multi-Dispatch Linearizability Liberates Applications for Lower Latency\vspace{-2ex}}
 
-% %for single author (just remove % characters)
 \author{
 {\rm Submission \#1400}
-% copy the following lines to add more authors
-% \and
-% {\rm Name}\\
-%Name Institution
 } % end author
 
 \maketitle

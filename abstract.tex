@@ -1,9 +1,22 @@
 \begin{abstract}
-  Linearizability is the gold standard consistency model, guaranteeing that operations execute in a total global order across all clients in a manner that respects real-time. Application programmers who build atop linearizable systems experience easy-to-reason-about sequential behavior, almost
-  as if they were programming on a single machine. But even linearizability introduces a trade-off for application
-  programmers: It requires that client processes dispatch only one operation at a time and await its response before issuing the next. This constraint can significantly increase a complex
-  application's end-to-end latency. But clients that do not behave sequentially (e.g., to get lower latency) are not guaranteed a linearizable ordering over their operations, breaking linearizability's easy-to-reason-about semantics.
+  \Mdl{} is a new consistency model that extends Linearizability
+  to allow individual application processes to dispatch concurrent operations. Unlike under Linearizability, concurrent operations in \Mdl{} have a well-defined order based on when they were issued.
+  Enabling concurrent operations within a process significantly improves application latency, and guaranteeing ordering between concurrent operations allows more applications to benefit from such an improvement.
   
-  In this paper, we introduce \Multidispatch{} Linearizability (\md{}), a new consistency model that extends Linearizability 
-  to explicitly allow individual clients to issue concurrent operations. Removing this constraint in \md{} improves application latency while guaranteeing a linearization that respects each client's issue order. To demonstrate this, we also design, implement, and evaluate \sys{}, the first multi-shard system to guarantee \md{}. We demonstrate \sys{} can reduce application latency by up to 75\% and \true{90\%} in single and multi-datacenter settings respectively.
+  Naively using \Mdl{}, however, requires programmers to reason about our new consistency model for their applications.
+  To avoid this, we introduce a set of conditions for transforming an application's non-concurrent operations to concurrent ones and then prove a transformed program running on \mdl{} is externally equivalent to the original program running on Linearizability. This enables applications to reap the lower latency of concurrent operations while still reasoning about Linearizability without them.
+
+  No existing system provides \mdl{} across multiple shards, so we design and implement \sys{}.
+  Our evaluation compares \sys{} to Multi-Paxos and finds it decreases latency by up to 75\% and up to 84\% in single datacenter and wide-area settings respectively.
 \end{abstract}
+
+%   Linearizability is the gold standard consistency model, guaranteeing that operations execute in a total global order across all clients in a manner that respects real-time. Application programmers who build atop linearizable systems experience easy-to-reason-about sequential behavior, almost
+%   as if they were programming on a single machine. But even linearizability introduces a trade-off for application
+%   programmers: It requires that client processes dispatch only one operation at a time and await its response before issuing the next. This constraint can significantly increase a complex
+%   application's end-to-end latency. But clients that do not behave sequentially (e.g., to get lower latency) are not guaranteed a linearizable ordering over their operations, breaking linearizability's easy-to-reason-about semantics.
+
+% %    Linearizability is a widely used and nearly ideal consistency model that provides programmers with a strong abstraction almost as if they were programming on a single machine. Its definition, however, precludes 
+  
+%   In this paper, we introduce \Multidispatch{} Linearizability (\md{}), a new consistency model that extends Linearizability 
+%   to explicitly allow individual clients to issue concurrent operations. Removing this constraint in \md{} improves application latency while guaranteeing a linearization that respects each client's issue order. To demonstrate this, we also design, implement, and evaluate \sys{}, the first multi-shard system to guarantee \md{}. We demonstrate \sys{} can reduce application latency by up to 75\% and \true{90\%} in single and multi-datacenter settings respectively.
+
