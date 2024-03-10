@@ -19,8 +19,8 @@
 \SetKwFunction{leaderHandleFinalAccept}{Leader::FinalAcceptRespRecv}
 \SetKwFunction{clientWait}{Client::SubmitOpReplyRecv}
 \SetKwFunction{Recover}{NewLeader::Recover}
-\SetKwFunction{getPredecessor}{Leader::GetPredecessor}
-\SetKwFunction{getSuccessor}{Leader::GetSuccessor}
+\SetKwFunction{getPredecessor}{Leader::GetPredecessorTS}
+\SetKwFunction{getSuccessor}{Leader::GetSuccessorTS}
 \SetKwFunction{leaderSubmit}{Leader::SubmitOpRecv}
 \SetKwFunction{replicaCoord}{Replica::coordRequestRecv}
 \SetKwFunction{shardMain}{Leader::ProcessEpoch}
@@ -29,6 +29,13 @@
 \SetKwFunction{append}{.append}
 \SetKwFunction{find}{.find}
 \SetKwFunction{pop}{.pop}
+\SetKwFunction{adds}{.add}
+\SetKwFunction{removes}{.remove}
+\SetKwFunction{qpush}{.enq}
+\SetKwFunction{qpop}{.deq}
+\SetKwFunction{sorting}{.sort}
+\SetKwFunction{clearing}{.clear}
+\SetKwFunction{constructQueue}{constructQueue}
 \SetKwFunction{execute}{execute}
 
 \algnewcommand{\IfThenElse}[3]{% \IfThenElse{<if>}{<then>}{<else>}
@@ -664,36 +671,119 @@ The second requirement is more complex and requires that we avoid introducing an
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%% Failover %%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% getSuccessor(e)
+% If e is in committed but not ordered
+% BLOCK until I get my successor, then send back my_successor_ts -1
+% Else if e in ordered 
+% Return e.ts
+% Else
+% Return inf
+
 \begin{algorithm}[!tb]
     \State $\textit{S}$ \algorithmiccomment{Set of all shards in cluster}\\
-    \Function{\Recover(\textit{E})}{ \algorithmiccomment{E := committed but not coordinated ops}\\
-        \Wait receive $E_i$ from $S_i \in S$\\
-        $E = \bigcup\limits_{i=1}^{n} E_{i}$\\
-        \Send $\textit{getPredecessor}(\textit{e})$ to $S_i \in \mathcal{S}$ for each $e \in E$\\
-        \Send $\textit{getSuccessor}(\textit{e})$ to $S_i \in \mathcal{S}$ for each $e \in E$\\
+    \State $\textit{R}$ \algorithmiccomment{Set of all replicas in shard}\\
+    % \State $n$ \algorithmiccomment{Number of replicas in shard}\\
+    \textbf{parameter} $E$ \algorithmiccomment{Committed but not ordered ops}\\
+    \Function{\Recover(\textit{E})}{\\
+        \For{$\mathrm{each}$ $r \in R$}{ 
+                \Wait receive $E_r$\\
+                $E \gets E\cup E_r$\\
+        }
+        % $E \gets \bigcup\limits_{i=1}^{n} E_{i}$\\
+        $\mathrm{init\_shard\_ts} \gets \mathrm{orderedLog}[-1].ts + 1$\\
+        $\mathrm{shard\_ts} \gets \mathrm{init\_shard\_ts}$\\
+        \For{$\mathrm{each}$ $ e \in E$}{
+            \Send $\textit{getPredecessorTS}(e.\mathrm{pred})$ to $S_{e.\mathrm{pred}}$\\
+            \Wait receive $\textit{getPredecessorTSReply}(ts)$ from $S_e$\\
+            $e.\mathrm{pred\_ts} \gets ts$\\
+            $e.\mathrm{succ\_ts} \gets \infty$\\
+        }
+        \For{$\mathrm{each}$ $s \in S$}{
+            \Send $\textit{getSuccessor}(E)$ to $s$\\
+            \Wait receive $\textit{getSuccessorReply}(TS)$ from $s$\\
+            \For{$\mathrm{each}$ $ts_i \in TS$}{
+                $e_i.\mathrm{succ\_ts} \gets \min(e_i.\mathrm{succ\_ts}, \enspace ts_i)$\\
+            }
+        }
+        $E\sorting(\text{by} \enspace succ\_ts)$\\
+        $q \gets \constructQueue(E)$\\
+        \For{$e \in q$}{
+            $e.\mathrm{ts} \gets \mathrrm{max}(e.\mathrm{pred\_ts}+1, \mathrm{shard\_ts})$\\
+            $\mathrm{shard\_ts} \gets e.\mathrm{ts} + 1$\\
+            $q\qpush(e)$\\
+        }
+        % $E\sorting(\text{by} \enspace arrival\_ts)$\\
+        % $q \gets \constructQueue(E)$\\
+        
+        % % \For{$\mathrm{each}$ $e \in E$}{
+        % %     $q\qpush(e)$\\
+        % % }
+        % \State $A \gets \{\}$\\
+        % \State $C \gets \{\}$\\
+        % \For{$e \in q$}{
+        %     $e.\mathrm{ts} \gets \mathrrm{max}(e.\mathrm{pred\_ts}+1, \mathrm{shard\_ts})$\\
+        %     $\mathrm{shard\_ts} \gets e.\mathrm{ts} + 1$\\
+        %     \If{$e.\mathrm{ts} > e.\mathrm{succ\_ts}$}{
+        %         $C\adds(e)$\\
+        %     }
+        %     \Else{
+        %         $A\adds(e)$\\
+        %     }
+        %     $q\qpush(e)$\\
+        % }
+        % \While{$|C| > 0$}{
+        %     \State $A\_tmp \gets \{\}$\\
+        %     $q\clearing()$\\
+        %     $C\sorting(\text{by} \enspace succ\_ts)$\\
+        %     $\mathrm{shard\_ts} \gets \mathrm{orderedLog}[-1].ts + 1$\\
+        %     \For{$\mathrm{each}$ $e \in C$}{
+        %         $e.\mathrm{ts} \gets \mathrrm{max}(e.\mathrm{pred\_ts}+1, \mathrm{shard\_ts})$\\
+        %         $\mathrm{shard\_ts} \gets e.\mathrm{ts} + 1$\\
+        %         $q\qpush(e)$\\
+        %         $A\_tmp\adds(e)$\\
+        %     }
+        %     $C\clearing()$\\
+        %     \For{$\mathrm{each}$ $e \in A$}{
+        %         $e.\mathrm{ts} \gets \mathrrm{max}(e.\mathrm{pred\_ts}+1, \mathrm{shard\_ts})$\\
+        %         $\mathrm{shard\_ts} \gets e.\mathrm{ts} + 1$\\
+        %         \If{$e.\mathrm{ts} > e.\mathrm{succ\_ts}$}{
+        %             $C\adds(e)$\\
+        %         }
+        %         \Else{
+        %             $A\_tmp\adds(e)$\\
+        %         }
+        %         $q\qpush(e)$\\
+        %     }
+        %     $A \gets A\_tmp$\\
+        % }
+        \Send $\textit{FinalAccept}(\textit{q})$ to all $r \in \mathcal{R}$\\
+        \algorithmiccomment{New leader begins taking new client requests}
     }
-
-    \Function{\getPredecessor(\textit{Req})}{
-        \Wait receive $\textit{SubmitOpReply}(V)$ from $L_K \in \mathcal{L}$\\
-        \Wait until $\textit{rcvd} = \textit{Req.seqno}$\\
-        %$m.lock()$\\
-        $\IfThen{\textit{prevReq} = \textit{Req}}{\textit{prevReq} \gets \textit{NULL}}$\\
-        $\textit{rcvd} \gets \textit{rcvd} + 1$\\
-        %$m.unlock()$\\
-        \Return $V$\\
+    \Function{\getPredecessor(\textit{e})}{
+        \Wait until $e.\mathrm{coordinated} \enspace \lor \enspace \textit{e} \in \mathrm{orderedLog}$\\
+        \Return $e.\mathrm{ts}$\\
     }
-    \Function{\getSuccessor(\textit{Req})}{
-        \Wait receive $\textit{SubmitOpReply}(V)$ from $L_K \in \mathcal{L}$\\
-        \Wait until $\textit{rcvd} = \textit{Req.seqno}$\\
-        %$m.lock()$\\
-        $\IfThen{\textit{prevReq} = \textit{Req}}{\textit{prevReq} \gets \textit{NULL}}$\\
-        $\textit{rcvd} \gets \textit{rcvd} + 1$\\
-        %$m.unlock()$\\
+    \Function{\getSuccessor(\textit{E})}{
+        $V \gets$ constructEmptySet($|E|$)\\
+        \For{$e_i \in E$}{
+            \If{$\exists \enspace \textit{o} \notin \mathrm{orderedLog} \enspace \land \enspace o.\mathrm{committed} \enspace \land \enspace o.\mathrm{pred} = e$}{
+                \Send $\textit{getSuccessor}(o)$ to all $S$\\
+                \Wait receive $\textit{getSuccessorReply}(ts)$ from $S$\\
+                $V_i \gets ts-1$\\
+            }
+            \If{$\exists \enspace \textit{o} \in \mathrm{orderedLog} \enspace \land \enspace o.\mathrm{pred} = e$}{
+                $V_i \gets$ $o.\mathrm{ts}$\\
+            }
+            \Else{
+                $V_i \gets$ $\infty$\\
+            }
+        }
         \Return $V$\\
     }
     \caption{MD-Lin Failover}
     \label{failover}
 \end{algorithm}
+
 
 \paragraph{Timestamps.}
 To ensure a compatible ordering with other shards, the new leader issues coordination requests to the predecessors of all operations in the committed-but-not-ordered set.
@@ -917,3 +1007,4 @@ is guaranteed to have a larger timestamp than $o_1$ by reasoning similar to that
     \label{shardprotocolcoord}
 \end{algorithm}
 \wl{The algorithms need to wrap words in textit to get proper kerning, e.g., $buffered$ vs $\textit{buffered}$}
+
