@@ -708,7 +708,7 @@ The second requirement is more complex and requires that we avoid introducing an
         $E\sorting(\text{by} \enspace succ\_ts)$\\
         $q \gets \constructQueue(E)$\\
         \For{$e \in q$}{
-            $e.\mathrm{ts} \gets \mathrrm{max}(e.\mathrm{pred\_ts}+1, \mathrm{shard\_ts})$\\
+            $e.\mathrm{ts} \gets \mathrm{max}(e.\mathrm{pred\_ts}+1, \mathrm{shard\_ts})$\\
             $\mathrm{shard\_ts} \gets e.\mathrm{ts} + 1$\\
             $q\qpush(e)$\\
         }
