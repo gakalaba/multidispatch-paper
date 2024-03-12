@@ -684,7 +684,7 @@ The second requirement is more complex and requires that we avoid introducing an
     \State $\textit{R}$ \algorithmiccomment{Set of all replicas in shard}\\
     % \State $n$ \algorithmiccomment{Number of replicas in shard}\\
     \textbf{parameter} $E$ \algorithmiccomment{Committed but not ordered ops}\\
-    \Function{\Recover(\textit{E})}{\\
+    \Function{\Recover(\textit{E})}{
         \For{$\mathrm{each}$ $r \in R$}{ 
                 \Wait receive $E_r$\\
                 $E \gets E\cup E_r$\\
@@ -759,26 +759,26 @@ The second requirement is more complex and requires that we avoid introducing an
         \Send $\textit{FinalAccept}(\textit{q})$ to all $r \in \mathcal{R}$\\
         \algorithmiccomment{New leader begins taking new client requests}
     }
-    \Function{\getPredecessor(\textit{e})}{
+    \Function{\getPredecessor(\textit{E})}{
         \Wait until $e.\mathrm{coordinated} \enspace \lor \enspace \textit{e} \in \mathrm{orderedLog}$\\
-        \Return $e.\mathrm{ts}$\\
+        \Return $e.\mathrm{ts}$
     }
     \Function{\getSuccessor(\textit{E})}{
-        $V \gets$ constructEmptySet($|E|$)\\
+        $V \gets$ constructEmptySet($|E|$) \\
         \For{$e_i \in E$}{
             \If{$\exists \enspace \textit{o} \notin \mathrm{orderedLog} \enspace \land \enspace o.\mathrm{committed} \enspace \land \enspace o.\mathrm{pred} = e$}{
-                \Send $\textit{getSuccessor}(o)$ to all $S$\\
-                \Wait receive $\textit{getSuccessorReply}(ts)$ from $S$\\
-                $V_i \gets ts-1$\\
+                \Send $\textit{getSuccessor}(o)$ to all $S$~\\
+                \Wait receive $\textit{getSuccessorReply}(ts)$ from $S$ \\
+                $V_i \gets ts-1$
             }
             \If{$\exists \enspace \textit{o} \in \mathrm{orderedLog} \enspace \land \enspace o.\mathrm{pred} = e$}{
-                $V_i \gets$ $o.\mathrm{ts}$\\
+                $V_i \gets$ $o.\mathrm{ts}$
             }
             \Else{
-                $V_i \gets$ $\infty$\\
+                $V_i \gets$ $\infty$
             }
         }
-        \Return $V$\\
+        \Return $V$
     }
     \caption{MD-Lin Failover}
     \label{failover}
