@@ -1,23 +1,24 @@
 \section{\Multidispatch{} Linearizability}
 \label{sec:mdl}
 
-In this section, we define \multidispatch{} linearizability and show how
+In this section, we define our new consistency model and show how
 applications can be transformed to reap the performance benefits it offers while appearing to behave identically to users.
-We first describe our model of distributed applications and systems
-(\S\ref{sec:mdl:applications} and \S\ref{sec:mdl:systems}).
-We then define \MDL{} (\S\ref{sec:mdl:def}). We conclude with a description
+We first describe our model of distributed applications
+(\S\ref{sec:mdl:applications} and \S\ref{sec:mdl:systems}) and then define \MDL{} (\S\ref{sec:mdl:def}). We conclude with a description
 of how to transform applications and prove our equivalence result
 (\S\ref{sec:mdl:equivalence}).
 
+\todo{Make a pass to see if there is anything defined that we don't use and thus that we can cut.}
 \subsection{Users, Applications, \& Executions}
 \label{sec:mdl:applications}
 
-We leverage the formalism used in \citeauthor{helt2021rss}~\cite{helt2021rss}. We model a
+We leverage the formalism used in RSS~\cite{helt2021rss}. We model a
 distributed \textit{application} as a set of $n$ \textit{processes}.
 Processes are state machines~\cite{lynch1987ioa,lynch1996da}
 that implement application logic by receiving messages from and sending replies
-to \textit{users}, performing local computation, exchanging inter-process
-messages, and invoking operations on \textit{systems}.
+to \textit{users}, performing local computation,
+and invoking operations on \textit{systems}.
+\wl{Is this somewhat redundant with our definitions in section 2 now?}
 
 An application's processes define a prefix-closed set of \textit{executions},
 which are sequences $s_0,\pi_1,s_1,\ldots$ of alternating \textit{states} and
@@ -33,16 +34,18 @@ As we describe in the next section, a subset of the input and output actions
 are \textit{system-facing} \textit{invocations} and \textit{responses}, 
 respectively.
 
-Processes send and receive messages to one another via unidirectional
+Users send messages to and receive messages from processes via unidirectional
 channels. To send a message to process $P_j$, $P_i$ uses two
 actions: first, $P_i$ uses an output action $\sendto_{ij}(m)$
 and later, an input action $\sent_{ij}$ occurs, signaling $m$'s 
 transmission. Similarly, to receive a message from $P_i$, $P_j$ first
 uses an output action $\request_{ij}$ and later, an input action
 $\receive_{ij}(m)$ occurs, signaling the receipt of $m$.
+(The formalism and proof here ignores inter-process messages for sake of brevity, but the full
+proof in Appendix A includes them.)
+%Appendix~\ref{sec:equivalence} includes them.)
 
-We assume users interact with processes through similar such channels. This
-allows our formalism to model scenarios both where human users interact with
+Such modeling allows our formalism to model scenarios both where human users interact with
 directly with the application and where one application is the client
 of another, as common in data centers~\cite{veeraraghavan2016kraken,schwarzkopf2018operating}.
 In the latter case, however, we assume users do not interact directly with the back-end system (defined below).
@@ -53,11 +56,12 @@ only $P_i$'s actions and the $i$th component of each state in $\alpha$.
 In a slight abuse of notation, we use $\alpha|U$ to denote the sub-sequence
 of only \textit{user-facing} external actions in $\alpha$. 
 
-\noindentparagraph{Well-formed.} A \textit{well-formed} execution
+\paragraph{Well-formed.} A \textit{well-formed} execution
 satisfies the following: (1) Messages are sent before they are received; and
 (2) While processes may have multiple outstanding $\request_{ij}$ actions
 (at one or more channels) or invocations (at the system), they may not have
-both types outstanding simultaneously. We henceforth only consider well-formed
+both types outstanding simultaneously.
+We henceforth only consider well-formed
 executions.
 
 \subsection{Systems}
@@ -98,7 +102,7 @@ invocation, and $\pi_1$ precedes $\pi_2$ in $\alpha$.
 We can also lift $\rt_\alpha$ to operations in the natural
 way.
 
-\noindentparagraph{\Multidispatch{} Linearizability.} An execution $\alpha_1$ satisfies \textit{\multidispatch{} linearizability (\MDL{})} if it
+\paragraph{\Multidispatch{} Linearizability.} An execution $\alpha_1$ satisfies \textit{\multidispatch{} linearizability} if it
 can be extended, by adding zero or more responses, to create $\alpha_2$ such that
 there exists a sequence $S \in \spec$ where (1) for all $P$,
 $S|P = \complete(\alpha_2)||P$, and (2) for all pairs of operations
@@ -109,7 +113,9 @@ over operations. This order is constrained in two ways: First,
 it must be consistent with each process's issue order, and second, 
 it must be consistent with the real-time order of operations.
 
-\subsubsection{Suffix-Closed Failures}
+\wl{Need a consistency pass to use the same suffix-closed/complete failure \{semantics\} or not everywhere}
+%\subsubsection{Suffix-Closed Failures}
+\paragraph{Suffix-Closed Failures.}
 \label{sec:mdl:def:failures}
 
 \MDL{}'s definition has an important implication for system designers.
@@ -118,15 +124,21 @@ effects of an operation cannot be exposed to other processes until all of its
 predecessors are guaranteed to succeed. Doing so would violate the intuitively
 correct behavior of most systems, and formally, this would result in
 $S|P \neq \complete(\alpha_2)||P$ for all legal sequential histories
-$S \in \spec$. We refer to this property as \textit{suffix-closed failure semantics}.
+$S \in \spec$.
+We refer to this property as \textit{suffix-closed failure semantics}.
+\wl{Try to tie this back to the example in the previous section?}
+%\true{( example in \cref{subfig:suffix_closed_breaks} from the previous section, the return values r(n)=1, r(m)=0 violate this property because w(n=1) is observed by r(n)=1 and }
+
+
 
 In an \MDL{} system, suffix-closed failures must be guaranteed even in the
 face of concurrent operations from the same process, which may be to
 objects on different shards. As we will see in Section~\ref{sec:mdl:zookeeper},
-guaranteeing suffix-closed failures is one way in which existing systems fail
-to correctly implement \multidispatch{} linearizability.  
+guaranteeing suffix-closed failures is one way in which existing systems do not implement \mdl{}.  
 
-\subsection{Parallelizing Apps \& External Equivalence}
+\wl{Should we punch up this discussion? I think it's a major way we're different from A-Linearizability and its necessary! For instance, we need this for our equivalence result right?! That seems important!}
+
+\subsection{Transforming Applications \& External Equivalence}
 \label{sec:mdl:equivalence}
 
 In this section, we show how we can transform an application that interacts with
@@ -137,10 +149,12 @@ the users can tell).
 
 We first define the transformation and several preliminaries. We then
 present a condensed form of the proof that the transformation preserves external
-equivalence. For ease of exposition, we focus on the actions within an
+equivalence. (A complete proof can be found in Appendix A.) %~\ref{sec:equivalence}.)
+For ease of exposition, we focus on the actions within an
 execution and assume states can be modified and reordered as needed.
 
-\subsubsection{Parallelizing an Application}
+%\subsubsection{Parallelizing Applications}
+\paragraph{Parallelizing Applications.}
 \label{sec:mdl:transform}
 
 We describe how to transform an application $A$ that is built to
@@ -155,6 +169,8 @@ The aim is to then move operation invocations earlier such that the application
 can issue multiple operations concurrently and reap the performance benefits 
 of an \MDL{} system.
 
+\wl{This is the FIRST time the application being concurrent shows up in the paper, this seems too late. Probably needs to be mentioned in the first two sections.}
+
 To produce the new application $A^\prime$, we then move actions in $A$ before prior 
 actions provided $A^\prime$ maintains the following:
 \textbf{(R1)} the order of data-dependent actions within
@@ -162,13 +178,14 @@ each process of $A$,
 \textbf{(R2)} the control flow of each process in $A$,
 \textbf{(R3)} the issue order of $A$'s operations,
 \textbf{(R4)} the order of non-system-facing external
-actions in $A$, including messages to/from users and between processes,
+actions in $A$, including messages to/from users,
 \textbf{(R5)} the order between a non-system-facing external 
 actions and operation invocations (in particular, the first invocation in a
 sequence of operations), and
 \textbf{(R6)} the order between non-system-facing external actions and operation responses (e.g., by waiting for the successful responses of any outstanding operations before sending a message to a user).
 
-\subsubsection{Proof of External Equivalence}
+%\subsubsection{Proof of External Equivalence}
+\paragraph{Proof of External Equivalence}
 
 Executions $\alpha$ and $\beta$ are
 \textit{externally equivalent} if $\alpha|U = \beta|U$. Intuitively,
@@ -191,7 +208,7 @@ of actions across processes to ensure $\beta$ is well-formed and satisfies linea
 By the assumption that $A$ is well-formed and the rules of $\transform$,
 each $\alpha^\prime | P_i$ comprises sub-sequences of local and
 system-facing actions separated by non-system-facing external actions.
-Further, by R4, the order of the non-system-facing external
+Further, by \textbf{R4}, the order of the non-system-facing external
 actions in each $\alpha^\prime | P_i$ respects the program order of the
 original application $A$. 
 
@@ -216,8 +233,6 @@ original  $\alpha^\prime$ satisfies \MDL{}, so let $<_S$ (for $S \in \spec$) be 
 Let $\prec_{\alpha}$ be the transitive closure of following pairs of actions
 $(\pi_i, \pi_j)$ in $\alpha$:
 \begin{enumerate}
-    \item $\mathbf{\prec_M}$\textbf{:} $\pi_i$ is a send-to action for some
-    inter-process message $M$ and $\pi_j$ is its corresponding receive-from action,
     \item $\mathbf{\prec_{P_i}}$\textbf{:} $\pi_i$ precedes $\pi_j$ in some $\alpha | P_i$,
     \item $\mathbf{\prec_U}$\textbf{:} $\pi_i$ precedes $\pi_j$ in $\alpha | U$, or
     \item $\mathbf{\prec_S}$\textbf{:} For each adjacent pair $o_k$, $o_{k+1}$
@@ -234,51 +249,41 @@ be a shortest cycle that does not include any transitive edges.
 
 We first prove several important properties of the cycle:
 \textbf{(P1)} The cycle contains at least two actions.
-This follows from the definitions of $\prec_M$, $\prec_{P_i}$,
+This follows from the definitions of $\prec_{P_i}$,
 $\prec_U$, and $\prec_S$.
 \textbf{(P2)} The cycle does not contain two consecutive
 $\prec_{P_i}$ edges or two consecutive $\prec_U$ edges. Otherwise, a 
 shorter cycle exists since $\prec_{P_i}$ and $\prec_U$ are transitive.
-\textbf{(P3)} The cycle does not contain two consecutive
-$\prec_M$ edges or two consecutive $\prec_S$. This follows from the 
-definitions of $\prec_M$ and $\prec_S$.
+\textbf{(P3)} The cycle does not contain two consecutive $\prec_S$. This follows from the 
+definitions of $\prec_S$.
 
-In the remainder of the proof, we leverage the following lemma. For
-sake of brevity, however, we omit its proof.
+In the remainder of the proof, we leverage the following lemma. 
+For sake of brevity, however, we omit its proof.
 
 \begin{lem}
     Let $\pi_1 \prec_{\alpha} \ldots \prec_{\alpha} \pi_n$
-    be a sequence of $n$ actions connected any of $\prec_M$,
+    be a sequence of $n$ actions connected any of
     $\prec_{P_i}$, $\prec_U$, and $\prec_S$ edges, and further
     assume $\pi_1$ and $\pi_n$ are send-to or receive-from actions.
     Then $\pi_1$ precedes $\pi_n$ in $\alpha$.
     \label{lem:helper2}
 \end{lem}
 
-We continue the proof by cases: First, assume the cycle contains at least one $\prec_M$ edge. Then the cycle can be written as
-$\pi_1 \prec_M \pi_2 \prec_{\alpha} \ldots \prec_{\alpha} \pi_n \prec_{\alpha} \pi_1$ 
-by re-indexing the actions as needed. By the assumption that $\alpha^\prime$ is well-formed,
-the fact that $\alpha$ preserved the order of non-system-facing external actions
-in $\alpha^\prime$,
-and the definition of $\pi_1 \prec_M \pi_2$, it is clear that $\pi_1$ precedes $\pi_2$ in $\alpha$.
-
-But the remainder of the cycle
-$\pi_2 \prec_{\alpha} \ldots \prec_{\alpha} \pi_1$
-is a sequence of actions connected by $\prec_M$, $\prec_{P_i}$, $\prec_U$, and $\prec_S$ edges
-starting with a receive-from action ($\pi_2$) and ending with a send-to action
-($\pi_1$). Thus, by Lemma~\ref{lem:helper2}, $\pi_2$ precedes $\pi_1$ in $\alpha$,
-a contradiction.
-
-Second, assume the cycle contains at least one $\prec_U$ edge. Then the cycle can be
+We continue the proof by cases: First, assume the cycle contains at least one $\prec_U$ edge. Then the cycle can be
 written as
 $\pi_1 \prec_U \pi_2 \prec_{\alpha} \ldots \prec_{\alpha} \pi_n \prec_{\alpha} \pi_1$. By the definition of $<_U$, clearly $\pi_1$ precedes $\pi_2$ in $\alpha$.
-Further, since users interact with processes using channels, $\pi_2$ and
-$\pi_n$ are either receive-from or send-to action, so we can use the same
-reasoning as above to conclude $\pi_2$ precedes $\pi_1$ in $\alpha$, again a
-contradiction. 
 
-Third, assume the cycle does not contain any $\prec_M$ or $\prec_U$ edges.
-By Properties P2 and P3, the cycle comprises alternating
+Since users interact with processes using channels, $\pi_2$ and
+$\pi_1$ are either receive-from or send-to actions,
+so the remainder of the cycle
+$\pi_2 \prec_{\alpha} \ldots \prec_{\alpha} \pi_1$
+is a sequence of actions connected by $\prec_{P_i}$, $\prec_U$, and $\prec_S$ edges
+starting and ending with a send-to or a receive-from action.
+Thus, by Lemma~\ref{lem:helper2}, $\pi_2$ precedes $\pi_1$ in $\alpha$,
+a contradiction.
+
+Second, assume the cycle does not contain any $\prec_U$ edges.
+By Properties \textbf{P2} and \textbf{P3}, the cycle comprises alternating
 $\prec_{P_i}$ and $\prec_S$ edges. Also, all $P_i$ in the $\prec_{P_i}$
 must be distinct, otherwise a shorter cycle must exist.
 Lastly, since they alternate with $\prec_S$ edges,
@@ -298,7 +303,7 @@ and responses of all operations in $S$ between $\op(\pi_i)$ and $\op(\pi_{i+1})$
 (if any). This (no longer shortest) cycle implies there is a cycle over operations 
 in $S$. But this contradicts the definition of $S$, which is a 
 total order. Thus, $\prec_{\alpha}$ is acyclic. Combined with the
-definitions of $\prec_M$, $\prec_{P_i}$, $\prec_U$, and $\prec_S$, this also
+definitions of $\prec_{P_i}$, $\prec_U$, and $\prec_S$, this also
 shows it is irreflexive.
 
 Let $\beta$ be a topological sort of $\prec_{\alpha}$ on the actions in

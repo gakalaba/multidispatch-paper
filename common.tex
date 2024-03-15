@@ -1,4 +1,4 @@
-\def\mpaxos{\texttt{Multi-Paxos}\xspace}
+\def\mpaxos{Multi-Paxos\xspace}
 %\def\sdl{Single-dispatch Linearizability\xspace}
 \def\sdl{Linearizability\xspace}
 \def\mdllong  {Multi-dispatch Linearizability\xspace}
@@ -6,8 +6,8 @@
 \def\Mdl{MD-Linearizability\xspace}
 % \def\sd{single-dispatch Linearizability\xspace}
 \def\md{MD-Linearizability\xspace}
-\def\protocol {\texttt{Ellis}\xspace}
-\def\system {\texttt{Ellis}\xspace}
+\def\protocol {Ellis\xspace}
+\def\system {Ellis\xspace}
 
 \newcommand*{\sys}{Ellis}
 % \newcommand*{\SDL}{single-dispatch Linearizability}
@@ -16,10 +16,15 @@
 \newcommand*{\Singledispatch}{Single-dispatch}
 \newcommand*{\multidispatch}{multi-dispatch}
 \newcommand*{\Multidispatch}{Multi-dispatch}
+\newcommand*{\lin}{linearizability}
+\newcommand*{\Lin}{Linearizability}
+\newcommand*{\configone}{Edge Client}
+\newcommand*{\configtwo}{Colocated Shard Leader}
+\newcommand*{\configthree}{Colocated Clients and Shard Leaders}
 
+\newcommand{\noindentparagraph}[1]{\noindent \textbf{#1}}
 
-\newcommand{\showComments}{yes}
-
+\newcommand{\showComments}{no}
 
 \newcommand{\note}[2]{
     \ifthenelse{\equal{\showComments}{yes}}{{\color{#1}[#2]}}{}
@@ -36,6 +41,7 @@
 \definecolor{rgreen}{RGB}{0, 112, 60}
 \newcommand{\tbd}[1]{\textcolor{rgreen}{#1}}
 \newcommand{\todo}[1]{\textcolor{red}{TODO: #1}}
+\newcommand{\stale}[1]{\textcolor{gray}{#1}}
 
 \ifthenelse{\not\equal{\showComments}{yes}}{%
 \renewcommand{\true}[1]{#1}

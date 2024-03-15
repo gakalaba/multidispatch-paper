@@ -1,81 +1,70 @@
 \section{Related Work}
 \label{sec:related}
 
-\noindentparagraph{Consistency Models.}
+\paragraph{Consistency Models.}
+The core difference between Linearizability and \mdl{} is that \mdl{} allows multi-dispatch and enforces issue-ordering for operations from the same application process.
+Using issue ordering as the constraint is intuitive and thus conceptually matches earlier work.
+Session guarantees~\cite{terry1994session} introduces four guarantees for operations within a given session: read-your-writes, monotonic reads, writes-follow-reads, and monotonic writes. When a session corresponds to an application process handling a user request the combination of these four guarantees ensures issue ordering.
+Similarly, A-Linearizability~\cite{hunt2010zookeeper} requires an issue-order for multi-dispatched writes.
 
-We have already discussed the differences between \multidispatch{}
-linearizability and Linearizability~\cite{herlihy1990linearizability}.
-The same goes for Zookeeper's Asynchronous
-Linearizability~\cite{hunt2010zookeeper}, which despite its name 
-allows stale reads. In this section, we discuss \MDL{}'s relationship
-to other consistency models.
+This earlier work, however, does not provide `strong' consistency comparable to Linearizability.
+Session guarantees do not ensure any real-time order, e.g., a write that finished yesterday might not been seen by a read issued today.
+A-Linearizability, despite its name, only provides Linearizability-like consistency for write operations and also has stale reads.
+Thus, \Mdl{} is distinct from this earlier work it builds on by providing `strong' Linearizability-like consistency for all operations.
 
 Sequential consistency was originally described in the context of
 multi-processors~\cite{lamport1979sequential}. It requires that
 the system reflects a total order over all operations that is 
-consistent with each processor's ``program order.'' It is often
-interpreted as allowing processor's to issue multiple memory 
+consistent with each processor's `program order.' It is often
+interpreted as allowing processors to issue multiple memory 
 operations concurrently, as is common in computer architecture.
-But its interpretation in the distributed systems community has often
+But in the distributed systems community, it has often
 included the assumption that each process issues operations 
 sequentially~\cite{attiya1993seqlin}.
 
 But like other, weaker consistency
 models~\cite{ahamad1995causal,lloyd2011cops,terry1995bayou,deCandia2007dynamo}, 
-sequential consistency introduces a trade-off for application
-programmers compared to linearizability. Although they allow for
-better-performing systems, they make it more difficult to build
-correct applications. In contrast, through its transformation
+sequential consistency introduces a trade-off. Although it enables
+better-performing systems, it makes building correct applictions more difficult. In contrast, through its transformation
 and accompanying equivalence result, \MDL{} offers transformed
-applications better performance while guaranteeing that they behave 
+applications better performance while guaranteeing they behave 
 identically to the original application.
 
-\noindentparagraph{Equivalence Results.}
-
+\paragraph{Equivalence Results.}
 Other works have used the idea of equivalence to various
 ends~\cite{goldman1993unifiedModel,lundelius1984clocksync,
 fischer1985flp,attiya1993seqlin},
 such as proving bounds on clock
 synchronization~\cite{lundelius1984clocksync}.
-The most similar to our work is that of Helt et
-al.~\cite{helt2021rss}, which showed that their consistency
+Most similar to our work is Helt et al.~\cite{helt2021rss}, which shows that their consistency
 models provided identical correctness guarantees for applications
 as strict serializability~\cite{papadimitriou1979serializability} and linearizability~\cite{herlihy1990linearizability}.
 They refer to this as ``invariant equivalence.'' 
 
-Compared to invariant equivalence, external equivalence is weaker.
+External equivalence provides a proves a different property.
 It does not guarantee that the original and transformed applications
 will transition through the same states and thus obey the same
-application invariants. Instead, it simply guarantees that the two
-versions of the applications will behave the same for users.
-We suspect proving invariant equivalence in general between the two 
-versions of an application is complicated by the fact that the
-transformed application must inherently reorder action (i.e., 
-instructions) in order to take advantage of the performance benefits
-offered by an \MDL{} system. We leave further investigation into
+application invariants. Instead, it guarantees that users cannot distinguish between the two
+application versions.
+Conversely, invariant-equivalent applications may exhibit different
+user-facing behaviors (referred to as ``anomalies'' in Helt et
+al.~\cite{helt2021rss}), so they are not necessarily externally equivalent.
+We leave further investigation into
 \MDL{}'s impacts on application invariants to future work.
 
-\noindentparagraph{Linearizable Systems.}
-
-Many protocols have been developed to provide fault-tolerant, linearizable storage.
+\paragraph{Linearizable Systems.} Many protocols have been developed to provide fault-tolerant, linearizable storage.
 State-of-the-art leader-based
 protocols~\cite{ongaro2014raft,lamport1998paxos,oki1988vr},
-including Raft, suffer in wide-area deployments due to the extra
+suffer in wide-area deployments due to the extra
 latency incurred between application processes and (potentially far)
-leaders. \MDL{} allows applications to amortize this latency
-by issuing multiple operations concurrently, but \sys{} would
-still suffer in a wide-area deployment due to the need to coordination
-between shard leaders.
-
-
-Recent work has proposed solution to improve the performance of
+leaders.
+There is a body of work that improves the performance of
 linearizable systems in the wide
-area~\cite{mao2008mencius,moraru2013epaxos,burke2020gryff}. It remains
-an interesting avenue for future work to combine the ideas in these works with \sys{}'s current protocol to design an \MDL{} system
-for wide-are deployments.
+area~\cite{mao2008mencius,moraru2013epaxos,burke2020gryff} and that can sometimes avoid the latency penalty from a far-away leader.
+As a leader-based protocol \sys{} must pay the penalty for far-away leaders.
+An interesting avenue for future work is removing this penalty by adding \mdl{} to some of these designs.
 
-\noindentparagraph{Transactional Systems.}
-
+\paragraph{Transactional Systems.}
 Transactional consistency models, like strict serializability,
 allow application processes to group their operations into
 transactions~\cite{papadimitriou1979serializability}. Such
@@ -85,15 +74,21 @@ guarantees also exist~\cite{adya1999weakcons}).
 Compared to \MDL{}'s issue order guarantee, transactional atomicity 
 is stronger since it prevents other processes from observing 
 intermediate states where some of the operations in a transaction 
-have taken effect but not others. We leave a closer investigation
-between the relationship of these two types of guarantees and their
-implications for application correctness to future work.
+have taken effect but not others. 
 
-That being said, some transactional consistency
-models~\cite{papadimitriou1979serializability,adya1999weakcons}, similarly assume that 
+% A closer investigation
+% of the relationship between these guarantees (and its
+% implications for application correctness) is left to future work.
+
+Some transactional consistency
+models~\cite{papadimitriou1979serializability,adya1999weakcons} similarly assume 
 each application process issues one transaction at a time. This may 
 make it possible to combine the ideas here with that of transactions. 
-This could then offer similar improvements in end-to-end 
+This may offer similar improvements in end-to-end 
 performance for application built atop existing transactional 
 systems~\cite{thomson2014calvin,mahmoud2013replicatedCommit,zhang2018tapir,mu2014rococo,mu2016janus,kraska2013mdcc,ren2019slog,taft2020crdb,yan2018carousel}.
+
+
+
+
 

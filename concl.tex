@@ -3,14 +3,14 @@
 
 This work presents a new consistency model, \mdllong{}, a
 modern extension of linearizability that explicitly allows
-client processes to issue multiple operations concurrently.
-We also describe how
+client processes to issue multiple operations concurrently. We also describe how
 to transform applications that currently interact with 
 a linearizable system into ones that can reap the performance
-benefits offered by a comparable \mdl{} system. We prove that
+benefits offered by a comparable \mdl{} system.
+We prove that
 following the transformation ensure the new application will 
 behave the same as the old. Further, we design, implement,
 and evaluate \sys{}, the first
 multi-shard system to guarantee \mdl{}. Our evaluation 
-demonstrates \sys{} offers significant (e.g., up to 75\%) 
-reductions in end-to-end application latency.
+demonstrates \sys{} offers significant 
+reductions in end-to-end application latency compared to Multi-Paxos.

@@ -1,120 +1,178 @@
 \section{Background \& Motivation}
+This section provides the necessary background on distributed applications, consistency models, Linearizability, and why its single-dispatch requirement slows applications.
+It then explains why naive parellelization of operations to a Linearizable system is error-prone and fragile.
 
-In this section, we first provide the necessary background on 
-distributed applications and the motivating example that we will
-use throughout the paper. We then motivate the need for our
-new consistency model and system.
+\paragraph{Background and Terminology.}
+We consider here the common model of an application that stores its shared state in a separate backend system.
+Users interact with the application by sending \textit{requests}, e.g., a HTTP request, to one of many concurrent \textit{application processes} that implement the application logic. Application processes are stateless and process requests on behalf of many users. Application processes send \textit{operations} to a backend \textit{system} that provides the concurrent application processes with access to shared, persistent state.
 
-\subsection{Distributed Applications}
+An application's processing of a user's request will result in some number of operations to the backend system, which we refer to as the request's \textit{fanout}. Our goal is to minimize the \textit{end-to-end latency} of an application processing a user's request. For instance, a user request that result in 100 operations has a fanout of 100 and we are trying to minimize the latency of the totality of these operations.
 
-A distributed application comprises two components: Users
-interact with the application by sending messages to
-\textit{application processes}, for instance, by submitting
-an HTTP request. In response, the 
-processes may perform local computation, exchange messages, or
-interact with a back-end \textit{system}.
-
-Such systems, such as databases or key-value stores, are typically
-located within the same (or a nearby) data center as the application 
-processes. They are designed to handle the challenges of
-programming in distributed environments, such as fault-tolerance.
-
-\subsection{Motivating Example: Photo-Sharing App}
-
-Throughout the paper, we consider a simple but illustrative
-example: a photo-sharing application. The application allows
-users to upload and share their photos with other users.
-
-In our example application, photos are organized into
-albums. Both photos and albums are stored in a distributed,
-linearizable~\cite{herlihy1990linearizability} key-value store
-using a unique key. A photo's key maps to a binary blob, and
-an album's key maps to structured data containing the keys of
-all of its photos. If a key is read but is not present, the
-key-value store returns \texttt{null}.
-
-When a user uploads $N$ photos to an album, a Web server
-issues $N+1$ operations: First, it inserts $N$ key-value
-pairs, one for each photo. Second, it issues a read-modify-write
-to append the new photos' keys to the album. To handle a request to
-view an album, a Web server first reads the album's key and subsequently
-reads (one at a time) each of its photo's binary blob before
-returning the aggregated contents to the user.
-
-% \wl{this example app is okay, but hopefully we can come up with a better one. This one isn't ideal because storing blob bodies in the data store is normal at small scale but unusual at large scale (where there are specific blob stores) and returning them in line is particularly unusual}
-% \wl{ideally the example would not be based on existence of an object, which is easy for apps to fix with a retry loop}
-
-\subsection{Consistency Models \& App Latency}
-
+A system's \textit{consistency model} provides guarantees about the observable return values for a set of operations.
 Programmers rely on a system's consistency model while building their applications. By defining the system's set of allowed behaviors, a consistency model permits programmers to ignore the system's implementation and instead focus on ensuring their applications are correct given these behaviors.
 
-% \wl{It would be great to include an additional example of many system interactions beyond the Facebook paper, especially if it wasn't from a hyperscaler}
-% Jeff: I managed to add another in Jeff Dean's Tail at Scale but
-% didn't find any from non-hyperscalar.
+\newcommand{\myp}[1]{\underline{\quad$p_{#1}$\quad}}
+\begin{figure*}
+\begin{minipage}{0.7\linewidth}
+\begin{subfigure}[t]{.1\linewidth}
+\begin{center}
+\begin{tabular}{ l }
+ \myp{0} \\
+ w($a$=1) \\  
+ r($a$)     
+\end{tabular}
+\caption{}
+\label{subfig:one_cli}
+\end{center}
+\end{subfigure}\hfill%
+\begin{subfigure}[t]{.175\linewidth}
+\begin{center}
+\begin{tabular}{ l l }
+ \myp{1} & \myp{2} \\
+ w($a=1$) & r($b$) \\  
+ w($b=1$) & r($a$)    
+\end{tabular}
+\caption{}
+\label{subfig:wa_wb}
+\end{center}
+\end{subfigure}\hfill%
+\begin{subfigure}[t]{.45\linewidth}
+\begin{center}
+\begin{tabular}{ l l }
+ \underline{\hspace{9ex}$p_3$\hspace{9ex}} &
+ \underline{\hspace{9ex}$p_4$\hspace{9ex}} \\
+ test\_and\_set($c==0?1$) & test\_and\_set($c==0?2$) \\  
+ test\_and\_set($d==0?1$) & test\_and\_set($d==0?2$)   
+\end{tabular}
+\caption{}
+\label{subfig:test_and_set}
+\end{center}
+\end{subfigure}\\
+\begin{subfigure}[t]{.175\linewidth}
+\begin{center}
+\begin{tabular}{ l l }
+ \myp{5} & \myp{6} \\
+ rmw($e+=2$) & rmw($f+=2$) \\  
+ rmw($f*=2$) & rmw($e*=2$)    
+\end{tabular}
+\caption{}
+\label{subfig:rmws}
+\end{center}
+\end{subfigure}\hfill%
+\begin{subfigure}[t]{.25\linewidth}
+\begin{center}
+\begin{tabular}{ l l l }
+ \myp{7} & \myp{8} & \myp{9} \\
+ w($e=1$) & w($f=1$) & w($g=1$) \\  
+ r($g$) & r($e$)    & \textcolor{gray}{r($f$)}
+\end{tabular}
+\caption{}
+\label{subfig:read_breaks}
+\end{center}
+\end{subfigure}\hfill%
+% \begin{subfigure}[t]{.2\linewidth}
+% \begin{center}
+% \begin{tabular}{ l l }
+%  \myp{8} & \myp{9} \\
+%  w(h=1) & r(h) \\  
+%  \textcolor{gray}{if(r(i) > 2):} & r(j) \\
+%  \quad{}w(j=1) & \\
+%  \textcolor{gray}{else:} & \\
+%  \quad{}\textcolor{gray}{w(j=1)}
+% \end{tabular}
+% \caption{}
+% \label{subfig:optimize_breaks}
+% \end{center}
+% \end{subfigure}
+% ~
+\begin{subfigure}[t]{.2\linewidth}
+\begin{center}
+\begin{tabular}{ l l }
+ \myp{{10}} & \myp{{11}} \\
+ w($ka=1$) & r($kb$) \\  
+ w($kb=1$) & r($ka$)    
+\end{tabular}
+\caption{}
+\label{subfig:resharding_breaks}
+\end{center}
+\end{subfigure}
+\end{minipage}
+\hfill\begin{minipage}{.175\linewidth}
+\vspace{6.5ex}
+\begin{subfigure}[t]{.175\linewidth}
+\begin{center}
+\begin{tabular}{ l l }
+ \myp{{12}} & \myp{{13}} \\
+ w($m=1$) & \\  
+ w($n=1$) & \\
+        & r($n$)\\
+        & r($m$)\\
+\end{tabular}
+\caption{}%*{\hspace{10ex}(g)}
+\label{subfig:suffix_closed_breaks}
+\end{center}
+\end{subfigure}
+\end{minipage}
+\caption{Examples that show how naive parallelization is error prone. Each example shows operations from application processes with their issue order given by their vertical positions. The initial value for all state is 0. W, r, rmw mean write, read, and read-modify-write, respectively. In each example naive parallelization can return values that are not possible for Linearizability. (a--d) are unsafe with naive parallelization.  (e) is safe without the gray operation but unsafe with it. (f) is safe for some implementations of Linearizability but not others (see text). (g) is unsafe despite no concurrency between $p_{12}$ and $p_{13}$ because naive parallelization does not provide suffix-closed failures. All examples would need to use single-dispatch to be safe under Linearizability. All examples
+are safe with multi-dispatch under \mdl{}.}
+\label{fig:naive_breaks_stuff}
+\end{figure*}
 
-Existing consistency models, however, are increasingly insufficient for modern Web applications as they grow in scale and complexity. For example, Meta reports that processing a user's Web request can result in thousands of system interactions, with dozens of operations on the critical path \cite{ajoux2015challenges,dean2013tail}. But many consistency models assume application processes have at most one outstanding operation to the system at a time \cite{ahamad1995causal,herlihy1990linearizability}. Thus, a Web server that obeys this assumption and issues dozens of operations sequentially
-(e.g., if a user uploads multiple photos in our example application)
-will incur significant application latency.
+\paragraph{Linearizability is a Nearly Ideal Consistency Model.}
+\textit{Linearizability} is a `strong' consistency model which guarantees that return values for operations to a system are equivalent to some sequential total-order of operations that respects real-time precedence---if one operation finishes before another begins, the former is ordered before the later~\cite{herlihy1987linearizability, herlihy1990linearizability}.
+Its strong guarantees make it simple for application programmers to reason about. It reduces the behavior of a complex, highly concurrent distributed system to the equivalent of a single machine that processes operations one at time in the order they arrive over the network. 
+% (ensured by the sequential ordering) 
+% (ensured by the real-time ordering)
 
-\subsection{Naive Parallelization Is Error-Prone}
+Linearizability is one of a handful of dominant consistency models and is the consistency model provided by many fundamental protocols---e.g., Paxos~\cite{lamport1998paxos}, RAFT~\cite{ongaro2014raft}, PBFT~\cite{castro1999pbft}---and the many foundational systems that implement them---e.g., Chubby~\cite{burrows2006chubby}, ZippyDB~\cite{zippyblog}, etcd~\cite{etcd}.
+%ABD~\cite{abd}, primary-backup~\cite{primary-backup}, etc.\@---
 
-Programmers can modify their applications to issue system operations concurrently
-and thus reduce application latency. But doing so violates one of the consistency
-model's assumptions, potentially causing unspecified system behavior,
-which in turn may break their application.
+\paragraph{Linearizability's Single-dispatch Slows Down Applications.}
+Despite its many virtues, Linearizability imposes one major restriction on application processes, they must be \textit{single-dispatch}, i.e., they can only have one outstanding operation at a time. 
+% Thus while Linearizability permits concurrency between different processes it disallows it within a given process. 
+This restriction was quite reasonable 36 years ago when Linearizability was introduced and \true{accurately captured its target domain of sequential processes running on a multiprocessor accessing shared memory}. For modern applications that run in a distributed setting, however, this restriction has major implications for application latency.
 
-\begin{figure}[tbp]
-\centering
-\subfloat[Single Dispatch]{
-  \includegraphics[scale=.45,page=1]{figs/motivation_figs.pdf}
-  \label{fig:motivation:sdl}
-}
-\hfill
-\subfloat[Naive \Multidispatch{}]{
-  \includegraphics[scale=.45,page=2]{figs/motivation_figs.pdf}
-  \label{fig:motivation:naive}
-}
-\caption{
-A comparison of our example application when used with a
-\singledispatch{} linearizable key-value store and a naive
-attempt to introduce \multidispatch{}.
-}
-\label{fig:motivation}
-\end{figure}
+\wl{This would be the place to talk about application processing becoming concurrent if we're going to do that.}
 
-This problem is illustrated in Figure~\ref{fig:motivation}. We
-show a user $W$ uploading two photos to an album $A$. At the same time, a
-second user $R$ attempts to viewer the album. On the left, we show the
-resulting Web server interactions with a linearizable key-value server $S$.
-Because the key-value store guarantees
-linearizability~\cite{herlihy1990linearizability} and $W$ issues the
-two inserts and append sequentially, then a photo's blob will
-always exist in the store once its key is visible in an album.
-Thus, $R$'s second and third reads will never return \texttt{null}.
+Consider an application request with fanout 100, single-dispatch requires it to wait sequentially for each previous operation to finish before it dispatches the next operation. This results in much higher latency than dispatching the operations in parallel. For instance, if each operation takes 5\,ms then single-dispatch results in a latency of 500\,ms compared to the multi-dispatch latency of 5\,ms.
+Modern applications can easily have fanouts of 10, 100, or even 1000~\cite{dean2013tail}. For instance, Meta reports that processing a user's Web request results in thousands of system operations~\cite{ajoux2015challenges}.
 
-On the right, we show what can happen if we naively try to issue multiple
-operations concurrently while still using a linearizable key-value store.
-The uploader $W$ can issue all three operations concurrently, and the
-viewer $R$ can issue the latter two reads concurrently (after getting the keys
-from the list returned by the first read). In both cases, we see that the
-end-to-end application latency is lower.
+\wl{What should we say about processing time? Should we mention it and say we ignore it here for ease of exposition? Or should we include it?}
 
-But because the uploader issues the operations concurrently,
-their effects may appear in either order, so a photo's key may appear in an 
-album before its blob is readable. Thus, $R$'s second and third reads may now
-return \texttt{null}. The application code to view an album would therefore
-need to be fixed to handle this new case.
+\wl{Should we talk about the situation where single-dispatch is sufficient, i.e., fanout 1 (or 0), and places where the fanout is the same as the depth of data dependencies. The FB stat of 1000s of operations with sequential chains at most dozens deep suggests that fanout is the dominant factor here, so we should add that tidbit if we do.}
 
-Although the fix for our example application is relatively straightforward,
-reasoning about the system's behavior in such cases (and how it impacts application behavior)
-can quickly become complex.
-Fixing applications also forces programmers to consider the system's implementation,
-diminishing the usefulness of the consistency model.
+\paragraph{Naive Parallelization is Error-Prone.}
+Programmers can get around the single-dispatch limitation of Linearizability by simply dispatching operations concurrently.
+This reduces application latency, but because it violates the assumptions of Linearizability it means the programmer can no longer rely on its guarantees. Concurrently dispatched operations have no ordering guarantees between them so now the programmer must reason about all the potential interleavings of all the concurrent operations to make sure they are safe. This violates the fundamental purpose of strong consistency models, which is to make the behavior of the system easy to reason about.
 
-In the next section, we propose a new \multidispatch{} 
-consistency model, \md{}-linearizability, to remedy this 
-tension. \Multidispatch{} linearizability explicitly allows 
-applications to issue operations concurrently.
+
+\ak{the part that should be improved is the examples as they are very abstract and also quite unclear. it is difficult to tell what is going on and i imagine even more so for someone who isn't familiar with MDL}
+
+\Cref{fig:naive_breaks_stuff} shows several simple examples where naive parallelization results in return values that are not possible under Linearizability.
+In \cref{subfig:one_cli} naive parallelization can return $a=0$, the initial value for $a$ despite this client issuing w($a=1$) first.
+This is possible because r($a$) can be ordered by the system before w($a=1$).
+Linearizability disallows this behavior through its single-dispatch requirement (and its real-time requirement), thus the only valid return value for $a$ is 1.
+In \cref{subfig:wa_wb} naive parallelization can return $a=0$, $b=1$, which Linearizability cannot.
+In \cref{subfig:test_and_set} naive parallelization can set and return $c=1$,$d=2$ or vice versa, neither of which Linearizability permits.
+In \cref{subfig:rmws} naive parallelization can set and return $e=2$,$f=2$, which Linearizability cannot.
+Each of these new behaviors can break an application's correctness.
+For example, \cref{subfig:test_and_set} can result in a deadlock under naive parallelization if $c$ and $d$ correspond to locks.
+
+% Neither of these behaviors is possible under Linearizability and can break an application's correctness. For example, \cref{subfig:wa_wb} corresponds to the classic example of removing a person an access control list on a social network and then posting something they should not see~\cite{cooper2008pnuts, lloyd2011cops}.
+
+Programmers can analyze the application code for these new behaviors, reason about their effects on correctness, and then change the code to ensure correctness. For instance, in \cref{subfig:wa_wb} the programmer could recognize the new behavior and then make sure both $p_1$ and $p_2$ dispatch their operations sequentially.
+(In fact, all examples in \cref{fig:naive_breaks_stuff} would require using single-dispatch to be made safe.)
+This method requires expertise to determine all the potential behaviors, careful reasoning to determine what is correct, and makes the code more complex. This is possible in some cases where the time and expertise are available, but it is not a general solution.
+
+Worse yet, the correctness of an application needs to be reestablished whenever application code changes and is fragile to changes in the underlying system. \Cref{subfig:read_breaks} shows an example where the operations shown in black are safe under naive parallelization, but are not longer safe once the r($f$) shown in gray is added.
+%\Cref{subfig:optimize_breaks} shows an example where naive parallelization is safe when the gray code is included, but that breaks once the gray code is optimized away.
+\Cref{subfig:resharding_breaks} shows an example where naive parallelization is safe as long as keys whose prefix starts with the same letter are always mapped to the same shard, but that breaks when they are mapped to different shards.
+
+Finally, \cref{subfig:suffix_closed_breaks} shows an example where naive parallelization results in new behavior despite the requests of $p_{12}$ and $p_{13}$ not being concurrent. Here it is possible for naive parallelization to return $n=1$, $m=0$ if w($m=1$) failed. This is not possible under Linearizability because if w($m=1$) failed then w($n=1$) would never have been dispatched.
+
+Thus, naive parallelization reduces latency but violates the purpose of a strong consistency model by forcing programmers to continuously reason about complex interactions between their code, the system, and failures. We next propose \mdl{} to avoid this unnecessary tradeoff.
+
+\wl{why is it parallelization here instead of multidispatch? Should probably be just multi-dispatch}
 
 % Consequently, it 
 % enables applications to achieve lower end-to-end latency. Provided 
