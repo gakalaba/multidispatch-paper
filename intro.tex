@@ -16,7 +16,7 @@ It is what is provided by Paxos~\cite{lamport1998paxos}, RAFT~\cite{ongaro2014ra
 Linearizability has the same guarantees as a single machine that processes operations one at a time in the order it receives them over a network.
 This makes it a `strong' consistency model that has very intuitive behavior for programmers to reason about.
 
-But Linearizability was defined 36 years ago~\cite{herlihy1990linearizability,herlihy1987linearizability} and thus predates many developments and trends in computing.
+But Linearizability was defined \cbasuggest{36}{37} years ago~\cite{herlihy1990linearizability,herlihy1987linearizability} and thus predates many developments and trends in computing.
 One major trend is the use of \textit{multi-dispatch}, i.e., application processes concurrently dispatch multiple operations in an effort to
 decrease application latency.
 Linearizability specifically disallows this behavior and instead requires \textit{single-dispatch}, where a client process may only have a single outstanding operation at a time.

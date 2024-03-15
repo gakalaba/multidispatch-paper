@@ -42,3 +42,9 @@
 \renewcommand{\tbd}[1]{#1}
 \renewcommand{\todo}[1]{}
 }{}
+
+\newcommand{\commentcolor}[2]{
+ \ifthenelse{\equal{\showComments}{yes}}{{\color{#1}#2}}{#2}
+}
+\definecolor{spurple}{rgb}{0.6, 0.4, 0.8}
+\newcommand{\cbasuggest}[2]{\commentcolor{red}{\sout{#1}}\commentcolor{spurple}{#2}}
