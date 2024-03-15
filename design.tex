@@ -982,15 +982,14 @@ is guaranteed to have a larger timestamp than $o_1$ by reasoning similar to that
             $\textit{SubmitCRResp}(\textit{succrq}, \textit{False}, -1)$ to $L_{K+1} \in \mathcal{L}$\\
         }        
     }
-    \Function{\CRReply(\textit{req}, v, \textit{ts})}{
+    \Function{\CRReply(\textit{req}, v, \textit{pre\_ts})}{
         
         \If{$v = \textit{True}$}{
             % \Wait $entry := bufferedMap\find{rq} \neq NULL$\\
             $\textit{req.coordinated} \gets \textit{True}$\\
-            $\textit{req.ts} = \textit{ts}$\\
             \If{$\textit{req.committed} \land \textit{req.coordinated}$}{
-                $\textit{req.ts} := \max(\textit{req.ts}+1, \textit{ShardTS})$\\
-                $\textit{ShardTS} := \max(\textit{req.ts}, \textit{ShardTS})+1$\\
+                $\textit{req.ts} := \max(\textit{pred\_ts}+1, \textit{ShardTS})$\\
+                $\textit{ShardTS} := \textit{req.ts}+1$\\
                 $\textit{SubmitCRResp}(\textit{req.succrq}, \textit{True}, \textit{req.ts})$ to $L_{K+1} \in \mathcal{L}$\\
                 $\textit{bufferedMap}\pop(\textit{req})$\\
                 $\textit{orderedLog}\append(\textit{req})$\\
