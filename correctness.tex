@@ -1,13 +1,69 @@
 \section{Correctness Proof}
 \label{sec:correctness}
+We consider an arbitrary, well-formed execution $\alpha$ of a set of application processes interacting with an \sys{} service. We define $e_1 <_p e_2$ to mean that $e_1$ and $e_2$ were issued by the same client, and $e_1$ was invoked before $e_2$ by that client, or $\text{inv}(e_1) < \text{inv}(e_2)$; we say that $e_1$ is the \textit{predecessor} request to $e_2$, and $e_2$ is the \textit{successor} request to $e_1$. We also define $e_3 \rightarrow e_4$ to mean $e_3$ precedes $e_4$ in real time, or $\text{resp}(e_3) < \text{inv}(e_4)$. To reason about the order of operations in \sys{}, we define several terms:
+
+Given an operation $e$, we define it as \textit{committed} once a quorum of replicas of the relevant shard added it to their buffered log. We define it as \textit{ordered} once a quorum of replicas have added it to their ordered log. We define it as \textit{coordinated} once the leader has received a coordination timestamp from the predecessor request.
+
+Finally, the sequential specification $\mathcal{G}_x$ of an object $x \in X$ is the set of all sequences of invocation-response pairs of reads and writes to $x \in X$ such that each read returns the value written by the most recent write.
+
+Recall that each operation in \sys{} is assigned a unique timestamp, $\epsilon$, once it is \textit{committed} and \textit{coordinated} by its \textit{predecessor}. Using these observations, we can define a total order over the operations to a single object $x \in X$, $<_x$ at each shard.
+
+\begin{lem}
+    \label{lemmaD8}
+    The sequence $S_x$ defined by $<_x$ over the invocation-response pairs of complete operations to object $x \in X$ is in the sequential specification $\mathcal{G}_x$.
+\end{lem}
+\begin{proof}
+    Each operation, $e$, is assigned a preliminary unique timestamp, $\epsilon$, once it is \textit{committed} and \textit{coordinated} by its \textit{predecessor}, $e_{pred}$, or if $e$ doesn't have a \textit{predecessor}, $\epsilon$ is assigned upon arrival and persisted among replicas when $e$ is \textit{ordered}. This timestamp might change only if the shard fails, after which $e$ will be assigned a new timestamp $\epsilon'$ by the failover procedure.
+    
+    Timestamps are assigned (normally and during failover) as $\epsilon = \max(\epsilon_\text{pred}+1, shard\_ts)$, where $\epsilon_\text{pred}$ is the timestamp of the \textit{predecessor} received via \textit{coordination} and $shard\_ts$ is the shard's own local timestamp at the time of assignment. Before any operations are added to the shard's execution log, the initial value of the shard's local timestamp is $0$; during failover, the initial value is the timestamp of the last \textit{ordered} operation's plus 1. Importantly, between assigning every timestamp, the shard updates its own local timestamp as $shard\_ts = \epsilon + 1$. After an operation is assigned a timestamp, it is added to the ordered log and replicated at this index with this timestamp, constructing $<_x$.
+
+    Since each $\epsilon$ is at least as large as $shard\_ts$ at the time of assignment, and $shard\_ts$ strictly increases between each timestamp assignment, all $\epsilon$ within a shard are unique and also strictly increase.
+
+    Finally, all replicas will apply operations to the state machine from the ordered log in timestamp order. Since $S_x$ is the sequence of invocation-response pairs defined by $<_x$, it is in the object's sequential specification.
+\end{proof}
+
+\begin{lem}
+    \label{lemmagetpred}
+    $\texttt{getPredecessor}(e)$ is guaranteed to eventually return.
+\end{lem}
+
+\begin{proof}
+    If $e$ does not have a \textit{predecessor}, or the \textit{predecessor} is at the same shard as $e$, then by line \ref{neginfy} of algorithm \ref{failover}, it will be assigned a value of $-\infty$ immediately.
+
+    Otherwise, it will invoke \texttt{getPredecessor}. 
+
+    Otherwise, the \textit{predecessor} is at a separate shard. If the shard does not experience any failures, the \textit{predecessor} will eventually be assigned a timestamp and the shard will respond with a value to the call. 
+    
+    If the shard of the \textit{predecessor} experiences failover, it will also eventually make calls to \texttt{getPredecessor} and \texttt{getSuccessor}. The calls to \texttt{getSuccessor} are always guaranteed to return and never block, as in algorithm \ref{failover}. The call to \texttt{getPredecessor}(\textit{predecessor}) will eventually hit a \textit{predecessor} operation that has no \textit{predecessor} and returns immediately, and using this return value and the value returned from the call to \texttt{getSuccessor} can complete failover. After this it can send a timestamp to the pending call to $\texttt{getPredecessor}(e)$.
+\end{proof}
+
+\begin{lem}
+    The failover protocol always converges.
+\end{lem}
+
+\begin{proof}
+    The failover protocol uses the Ford-Fulkerson algorithm to find a matching over the bipartite graph of operations and timestamps. To show this procedure converges, we must show that there exists at least one matching over the bipartite graph, which we show by applying Hall's Theorem.
+
+    First, we construct the bipartite graph, $\mathcal{G}$, as follows:
+
+    We create a set, $\mathcal{A}$ of vertices for each committed-but-not-ordered operation that has finite return values from \texttt{getPredecessor} and \texttt{getSuccessor}. We then create an infinite set of vertices representing all the integers. Lastly, we construct our edge set $\mathcal{E}$: for each operation in $\mathcal{A}$, we add an edge between itself and each integer that is in the range strictly greater than the value returned from \texttt{getPredecessor} and strictly less than the value returned from \texttt{getSuccessor}. Denote the subset of integers that have an edge incident to them from at least one vertex in $\mathcal{A}$ as $\mathcal{B}$, and this set represents timestamp candidates for each committed-but-not-ordered operation.
+
+    To show there exists a matching for each operation in $\mathcal{A}$, we use Hall's theorem:
+    
+    $\mathcal{G}$ has a matching of size $|\mathcal{A}|$ if and only if for every $\mathcal{S} \subseteq \mathcal{A}$ we have $|N(\mathcal{S})|\geq|\mathcal{S}|$, where $N(\mathcal{S}) = {b \in \mathcal{B} : \exists a \in \mathcal{S} with (a, b) \in \mathcal{E}}$.
+
+    We prove this by showing that for each vertex in $\mathcal{A}$, there is at least one unique vertex in $\mathcal{B}$
+\end{proof}
 
 
 \begin{lem}
 \label{lemma1}
-Consider a pair of operations $e_1, e_2$ such that $e_1 <_p e_2$, and further assume each operation is committed, coordinated, and been assigned timestamp $\varepsilon_1, \varepsilon_2$, at their respective shards. Then $\varepsilon_1 <= \varepsilon_2$.
+Consider a pair of operations $e_1, e_2$ such that $e_1 <_p e_2$, and further assume each operation is committed, coordinated, and been assigned timestamp $\varepsilon_1, \varepsilon_2$, at their respective shards. Then $\varepsilon_1 < \varepsilon_2$.
 \end{lem}
 \begin{proof}
 We case upon the presence of shard leader failures:
+
+\wl{We "case"?}
 
 \noindentparagraph{Case 1.} \textit{No failures}.
 Let $e_1$ and $e_2$ be two operations such that $e_1 <_p e_2$.
@@ -15,58 +71,64 @@ Consider the timestamp assignment process for $e_1$ and $e_2$. Let $\epsilon_1$ 
 
 Since $e_1 <_p e_2$, $e_2$ sends a coordination request to $e_1$. Upon receiving the coordination request, $e_1$ responds with its timestamp $\epsilon_1$, which it cannot send until it is committed and coordinated. Consequently, upon receiving $\epsilon_1$, $e_2$ sets its timestamp $\epsilon_2 = \max(\epsilon_1 + 1, \epsilon_{\text{shard}2})$.
 
-This implies $\epsilon_2 >= \epsilon_1 + 1$, or $\epsilon_1 < \epsilon_2$
+This implies $\epsilon_2 \geq \epsilon_1 + 1$, or $\epsilon_1 < \epsilon_2$.
 
 \noindentparagraph{Case 2.} \textit{With failures}.
 We case upon which shard fails.
 
-\noindentparagraph{Subcase A.} \textit{Shard with $e_2$ fails after $e_2$ is committed, before it is ordered}.
+\noindentparagraph{Subcase A.} \textit{Operations $e_1$ and $e_2$ are at separate shards. Shard with $e_2$ fails after $e_2$ is \textit{committed}, before it is \textit{ordered}. Shard with $e_1$ does not fail.}
+
 Assume shard with $e_2$ fails.
 
 During failover, all committed-but-not-ordered entries, including $e_2$, are processed and assigned new timestamps. Specifically, each entry gets a predecessor and successor timestamp via calls made to \texttt{getPredecessor} and \texttt{getSuccessor}, respectively, and the new shard leader sorts all committed-but-not-ordered entries by successor timestamp. Let $\epsilon_1$ and $\epsilon_2$ be the timestamps assigned to $e_1$ and $e_2$, respectively, where $\epsilon_1$ was never recalculated since the shard never failed.
 
 By the failover protocol, $\epsilon_2 = \max(\epsilon_1 + 1, \epsilon_{\text{shard}2}) \geq \epsilon_1 + 1$, ensuring $\epsilon_1 < \epsilon_2$.
 
-\noindentparagraph{Subcase B.} \textit{Shard with $e_1$ fails after $e_1$ is committed, before it is ordered}.
+\noindentparagraph{Subcase B.} \textit{Operations $e_1$ and $e_2$ are at separate shards. Shard with $e_1$ fails after $e_1$ is \textit{committed}, before it is \textit{ordered}. Shard with $e_2$ does not fail.}.
+
 Assume shard with $e_1$ fails.
 
-By the failover protocol, the new shard leader will call \texttt{getPredecessor} and \texttt{getSuccessor} for all committed-but-not-ordered entries, including $e_1$, giving them a predecessor and successor timestamp, respectively, then it will sort them based on successor timestamp, and finally in sorted order assign them new timestamps.
+By the failover protocol, the new shard leader will call \texttt{getPredecessor} and \texttt{getSuccessor} for all committed-but-not-ordered entries, including $e_1$, giving them a predecessor and successor timestamp, respectively, then it will sort them based on successor timestamp, and finally in sorted order assign them new timestamps. Importantly, \texttt{getSuccessor} will return since the shard with operation $e_2$ hasn't failed. Similarly, it is guaranteed that \texttt{getPredecessor} will return by lemma \ref{lemmagetpred}.
 
-We prove by induction that during failover, for all timestamps assigned to the sorted set of committed-but-not-ordered entries, $\epsilon_i < \epsilon_i\_\text{succ}$.
+We prove by induction that during failover, for all timestamps assigned to the sorted set of committed-but-not-ordered entries, $\epsilon_i \leq \epsilon_i\_\text{succ}$.
 
-\textbf{Base Case:} Consider the timestamp, $\epsilon_0$, assigned to the first processed entry, $e_0$, in the sorted set of committed-but-not-ordered entries.  $\epsilon_0 < \epsilon_0\_succ$
+\textbf{Base Case:} Consider the timestamp, $\epsilon_0$, assigned to the first processed entry, $e_0$, in the sorted set of committed-but-not-ordered entries.  $\epsilon_0 < \epsilon_0\_\text{succ}$
 \\
 When the new leader processes the 0th committed-but-not-ordered entry during failover, it will assign it a timestamp of
 $$\epsilon_0 = \max(\epsilon_0\_\text{pred} + 1, shard\_ts_0)$$
-If $\epsilon_0 = \epsilon_0\_pred + 1$, we know this is at most the value it used to coordinate its successor prior to failure, and that successor must have assigned itself a timestamp strictly larger than this sent value.
+If $\epsilon_0 = \epsilon_0\_pred + 1$, we know this is at most the value it used to coordinate its successor prior to failure, and that successor must have assigned itself a timestamp strictly larger than this sent value. Thus, $\epsilon_0 \leq \epsilon_0\_\text{succ}$
 
 Else $\epsilon_0 = shard\_ts_0$.
 Let's call the last ordered entry in the ordered log at the start of failover $e_k$. The initial value of the shard timestamp, $\text{shard\_ts}_0$, assigned at the beginning of recovery is the timestamp of the last ordered entry, $\epsilon_k + 1$. 
 
-It is possible that any of the committed-but-not-ordered had been assigned a timestamp prior to failover that was sent to a successor. We know all of these assigned timestamps must have been larger than $\epsilon_k$, or at least as large as $shard\_ts_0$. And since during coordination, successors assign themselves strictly increasing timestamps, we also know the timestamps of any successors to entries after $e_k$ had timestamps strictly greater than $shard\_ts_0$.
+It is possible that any of the committed-but-not-ordered entries had been assigned a timestamp prior to failover that was sent to a successor. We know all of these assigned timestamps must have been strictly larger than $\epsilon_k$, or at least as large as $shard\_ts_0$. And since during coordination, successors assign themselves strictly increasing timestamps, we also know the timestamps of any successors to entries after $e_k$ had timestamps strictly greater than $shard\_ts_0$.
 
-Therefore, $\epsilon_0 < \epsilon_{0\_\text{succ}}$.
+Therefore, $\epsilon_0 \leq \epsilon_{0\_\text{succ}}$.
 
 
-\textbf{Inductive Step:} Assume that the claim holds for some positive integer $i$. That is, consider the timestamp, $\epsilon_i$, assigned to some committed-but-not-ordered entry processed in the sorted order during failover, $e_i$, then $\epsilon_i < \epsilon_i\_\text{succ}$.
+\textbf{Inductive Step:} Assume that the claim holds for some positive integer $i$. That is, consider the timestamp, $\epsilon_i$, assigned to some committed-but-not-ordered entry processed in the sorted order during failover, $e_i$, then $\epsilon_i \leq \epsilon_i\_\text{succ}$.
 
-Now, we want to show that the claim also holds for $i+1$, i.e., we want to show $\epsilon_{i+1} < \epsilon_{i+1}\_\text{succ}$.
+Now, we want to show that the claim also holds for $i+1$, i.e., we want to show $\epsilon_{i+1} \leq \epsilon_{i+1}\_\text{succ}$.
 
-When the new leader processes the i+1th committed-but-not-ordered entry during failover, it will assign it a timestamp of
+When the new leader processes committed-but-not-ordered entry $e_{i+1}$ during failover, it will assign it a timestamp of
 $$\epsilon_{i+1} = \max(\epsilon_{i+1}\_\text{pred} + 1, shard\_ts_{i+1})$$
-If $\epsilon_{i+1} = \epsilon_{i+1}\_\text{pred} + 1$, we know this is at most the value it used to coordinate its successor prior to failure, and that successor must have assigned itself a timestamp strictly larger than this sent value.
+If $\epsilon_{i+1} = \epsilon_{i+1}\_\text{pred} + 1$, we know this is at most the value it used to coordinate its successor prior to failure, and that successor must have assigned itself a timestamp strictly larger than this sent value. Thus $\epsilon_{i+1} \leq \epsilon_{i+1}\_\text{succ}$.
 
-Else $\epsilon_{i+1} = shard\_ts_{i+1}$. Between assigning every committed-but-not-ordered entry, the shard updates its timestamp to be the last timestamp assigned to an entry plus one, or $shard\_ts_{i+1} = \epsilon_i + 1$. Moreover, we know that $\epsilon_{i}\_\text{succ} <= \epsilon_{i+1}\_\text{succ}$ due to sorted order by successor timestamps. Using our inductive hypothesis, we know $\epsilon_i < \epsilon_i\_\text{succ}$ or $\epsilon_i + 1 <= \epsilon_i\_\text{succ}$. From all of this we can show,
+Else $\epsilon_{i+1} = shard\_ts_{i+1}$. Between assigning every committed-but-not-ordered entry, the shard updates its timestamp to be the last timestamp assigned to an entry plus one, or $shard\_ts_{i+1} = \epsilon_i + 1$. Moreover, we know that $\epsilon_{i}\_\text{succ} \leq \epsilon_{i+1}\_\text{succ}$ due to sorted order by successor timestamps. Using our inductive hypothesis, we know $\epsilon_i \leq \epsilon_i\_\text{succ}$ or $\epsilon_i + 1 \leq \epsilon_i\_\text{succ}+1$. From all of this we can show,
 
-$$\epsilon_{i+1} = shard\_ts_{i+1} = \epsilon_i + 1 <= \epsilon_i\_\text{succ} <= \epsilon_{i+1}\_\text{succ}$$.
+$$\epsilon_{i+1} = shard\_ts_{i+1} = \epsilon_i + 1 \leq \epsilon_i\_\text{succ} + 1 \leq \epsilon_{i+1}\_\text{succ}$$.
 
-% All operations must send coordination requests to their predecessors, by line XXX. When $e_2$ sends a coordination request to $e_1$, $e_1$ cannot respond until it is committed and coordinated.
+\noindentparagraph{Subcase C.} \textit{Both shards with $e_1$ and $e_2$ fail after $e_1$ and $e_2$ are \textit{committed}, before each is \textit{ordered}. $e_1$ and $e_2$ could be at separate shards or the same shard.}
 
-% When an operation is committed and coordinated, the shard assigns a timestamp for the entry with value $\varepsilon = \max(\varepsilon_{\textit{pred}}+1, \varepsilon_{\textit{shard}})$.
-% When a shard leader sends a response to a coordination request, it sends $\varepsilon$, by line XXX.
+Assume both shards fail. Let's denote the shard with operation $e_1$ as $Shard_1$ and the shard with $e_2$ as $Shard_2$.
 
-% Thus $e_1$ will send $\varepsilon_1$ to $e_2$. When $e_2$ receives a response to its coordination request from $e_1$, it will set its timestamp $\varepsilon_2 = \max(\varepsilon_1+1, \varepsilon_{\textit{shard2}})$.
-% Clearly this implies $\varepsilon_1 < \varepsilon_2$.
+By the failover protocol, the new shard leaders at both shards will call \texttt{getPredecessor} and \texttt{getSuccessor} for all committed-but-not-ordered entries. When $Shard_1$'s new leader invokes \texttt{getSuccessor}, $Shard_2$ will respond with its return value from invoking \texttt{getSuccessor} minus 1, $\epsilon_2\_\text{succ} - 1$, as by line \ref{mytsminus1} in algorithm \ref{failover}. When $Shard_2$'s new leader invokes \texttt{getPredecessor}, $Shard_1$ will block until it has completed the failover procedure and assigned (and persisted) a final timestamp for $e_1$. 
+
+By the reasoning in subcase B, $\epsilon_1 \leq \epsilon_2\_\text{succ} - 1$. Thus $Shard_2$'s new leader will receive a \textit{predecessor} timestamp for $e_2$ such that $\epsilon_2\_\text{pred} < \epsilon_2\_\text{succ}$ when \texttt{getPredecessor} finally returns. As in subcase A, $\epsilon_2 = \max(\epsilon_2\_\text{pred}+1, \epsilon_{shard2})$.
+
+If $\epsilon_2 = \epsilon_2\_\text{pred}+1$ then since $\epsilon_2\_\text{pred} < \epsilon_2\_\text{succ}$, it follows $\epsilon_2 \leq \epsilon_2\_\text{succ}$.
+
+Else $\epsilon_2 = \epsilon_{shard2}$. By similar inductive reasoning as in case B, it follows that $\epsilon_2 \leq \epsilon_2\_\text{succ}$.
 \end{proof}
 
 \begin{lem}
@@ -78,14 +140,14 @@ We case upon the presence of shard leader failures:
 
 \noindentparagraph{Case 1.} \textit{No failures}.
 A shard leader assigns a timestamp to a committed and coordinated entry as 
-$$\epsilon = \max(\epsilon_{\text{pred}} + 1, \epsilon_{\text{shard}})$$ and immediately afterwards updates its own value to be 
-$$\epsilon_{\text{shard}} = \epsilon + 1$$
+$\epsilon = \max(\epsilon_{\text{pred}} + 1, \epsilon_{\text{shard}})$ and immediately afterwards updates its own value to be 
+$\epsilon_{\text{shard}} = \epsilon + 1$
 Therefore, if $e_1$ is ordered in the shard log before $e_2$, and entries can only be added to the log once they are committed and coordinated, 
-$$\epsilon_2 >= \epsilon_{\text{shard}} = \epsilon_1 + 1$$ or
-$$\epsilon_1 < \epsilon_2$$
+$\epsilon_2 >= \epsilon_{\text{shard}} = \epsilon_1 + 1$ or
+$\epsilon_1 < \epsilon_2$
 
 \noindentparagraph{Case 2.} \textit{With failures}.
-After we sort the committed-but-not-ordered entries in the log by their successor timestamps, we run the same process to assign new timestamps as described in case 1, which produces monotonically increasing values.
+After we sort the committed-but-not-ordered entries in the log by their successor timestamps, we run the same process to assign new timestamps as described in case 1, which produces strictly increasing values.
 % By line XXX, a shard adds an operation to the log after it is committed and coordinated. By line XXX, when $e_1$ is committed and coordinated, the shard assigns a timestamp for the entry with value $\varepsilon_1$, adds $e_1$ to its ordered log, and update its shard timestamp to be $\varepsilon_{\textit{shard}} = \max(\varepsilon_1, \varepsilon_{\textit{shard}}) + 1$. Because of this, any operation ordered in the log after $e_1$ is assigned a timestamp
 %  $\varepsilon_2 = \max(\varepsilon_{\textit{pred}}+1, \varepsilon_{\textit{shard}})$.
 % It follows that $\varepsilon_1 < \varepsilon_2$.
@@ -103,7 +165,7 @@ After we sort the committed-but-not-ordered entries in the log by their successo
 
 \begin{lem}
 \label{lemma3}
-Consider a sequence of operations $e_1,...,e_n$ such that the following hold: (1) successive pairs alternate between belonging to $<_p$ and $<_x$; (2) the last pair belongs to $\rightarrow$; and (3) $e_1$ and $e_n$ are at the same shard, $X$. Further assume each operation is committed, coordinated, and been assigned timestamp $\varepsilon_1, ..., \varepsilon_n$ at their respective shards. Then $\varepsilon_1 < \varepsilon_n$.
+Consider a sequence of operations $e_1,...,e_n$ such that the following hold: (1) successive pairs alternate between belonging to $<_p$ and $<_x$, making no assumption about which edge type is first; (2) the last pair belongs to $\rightarrow$; and (3) $e_1$ and $e_n$ are at the same shard, $X$. Further assume each operation is committed, coordinated, and been assigned timestamp $\varepsilon_1, ..., \varepsilon_n$ at their respective shards. Then $\varepsilon_1 < \varepsilon_n$.
 \end{lem}
 
 \begin{proof}
@@ -115,7 +177,7 @@ By Lemmas \ref{lemma1} and \ref{lemma2}, we know that $\epsilon_1 < \epsilon_{n-
 Using similar reasoning shown in lemma \ref{lemma2}, if $e_1$ is committed and coordinated and ordered in the shard log before $e_n$, then $\epsilon_1 < \epsilon_n$.
 
 \noindentparagraph{Case 2.} \textit{With failures}.
-Consider (the only interesting case) where shard $X$ fails after $e_1$ and $e_n$ have been committed and coordinated but not ordered. We know that the new leader will contain both $e_1$ and $e_n$ in its set of committed-but-not-ordered entries since they were committed prior to failure and by the quorum intersection property, the new leader will have both of them.
+Consider (the only interesting case) where shard $X$ fails after $e_1$ and $e_n$ have been \textit{committed} and \textit{coordinated} but not \textit{ordered}. We know that the new leader will contain both $e_1$ and $e_n$ in its set of committed-but-not-ordered entries since they were committed prior to failure and by the quorum intersection property, the new leader will have both of them.
 
 By the failover protocol, the new leader will first get the predecessor and successor timestamps for all committed-but-not-ordered entries, including $e_1$ and $e_n$, via calls made to \texttt{getPredecessor} and \texttt{getSuccessor}.
 
@@ -142,9 +204,17 @@ $$\texttt{getSuccessor}(e_n) = v_n \geq \epsilon_n\_\text{succ} > \epsilon_1 + 1
 Thus, $e_1$ will still be sorted before $e_n$.
 
 After the sort, we assign new monotonically increasing timestamps in sorted order, incrementing the shard timestamp between each assignment (as shown in previous lemmas), giving
-$$\epsilon_n >= \max(\epsilon_n\_\text{pred} + 1, \epsilon_1 + 1)$$
+$\epsilon_n >= \max(\epsilon_n\_\text{pred} + 1, \epsilon_1 + 1)$
 or,
-$$\epsilon_1 < \epsilon_n$$
+$\epsilon_1 < \epsilon_n$
+\end{proof}
+
+\begin{lem}
+\label{lemma5}
+Consider 3 operations, $e_1, e_2, e_3$, such that $e_1 \rightarrow e_2 <_p e_3$. Then $e_1 \rightarrow e_3$.
+\end{lem}
+\begin{proof}
+    If $e_1 \rightarrow e_2$, then by the definition of real time, $\text{resp}(e_1) < \text{inv}(e_2)$. Moreover, if $e_2 <_p e_3$, we also know by the definition of $<_p$ that $\text{inv}(e_2) < \text{inv}(e_3)$. Thus, we have $\text{resp}(e_1) < \text{inv}(e_3) < \text{inv}(e_3)$. But this gives us $e_1 \rightarrow e_3$.
 \end{proof}
 
 Let $<_\psi$ be a partial order defined over pairs of complete operations $e_1, e_2$, as follows:
@@ -166,28 +236,44 @@ We prove the lemma by contradiction, assuming the partial order contains a cycle
 
 \noindentparagraph{Property 2.} \textit{The cycle contains no consecutive $<_x$ edges.} {Using similar reasoning as in the above, $e_i <_x e_{i+1} <_x e_{i+2}$ would imply the existence of a shorter cycle that contains the edge $e_i <_x e_{i+2}$, a contradiction.}
 
-\noindentparagraph{Property 3.} \textit{The cycle contains at most one $\rightarrow$ edge.} Assume for the sake of contradiction that the cycle contains two $\rightarrow$ edges, $e_i \rightarrow e_j .... e_k \rightarrow e_l$, where $i < j \leq k < l$, reindexing the cycle if necessary. From the definition of $\rightarrow$, we know $\resps(e_i) < \invs(e_j)$ and $\resps(e_k) < \invs(e_l)$. We also know $\invs(e_l) < \resps(e_i)$, otherwise a shorter cycle would exist containing the edge $e_i \rightarrow e_l$. Similarly, we also know $\invs(e_j) < \resps(e_k)$, otherwise a shorter cycle would exist containing the edge $e_k \rightarrow e_j$. We arrive at a contradiction, since $\resps(e_i) < \invs(e_j) < \resps(e_k) < \invs(e_l) < \resps(e_i)$, which gives $\resps(e_i) < \resps(e_i)$.
+\noindentparagraph{Property 3.} \textit{The cycle contains at most one $\rightarrow$ edge.} Assume for the sake of contradiction that the cycle contains two $\rightarrow$ edges, $e_i \rightarrow e_j .... e_k \rightarrow e_l$, where $i < j \leq k < l$, reindexing the cycle if necessary. From the definition of $\rightarrow$, we know $\resp(e_i) < \inv(e_j)$ and $\resp(e_k) < \inv(e_l)$. We also know $\inv(e_l) < \resp(e_i)$, otherwise a shorter cycle would exist containing the edge $e_i \rightarrow e_l$. Similarly, we also know $\inv(e_j) < \resp(e_k)$, otherwise a shorter cycle would exist containing the edge $e_k \rightarrow e_j$. We arrive at a contradiction, since $\resp(e_i) < \inv(e_j) < \resp(e_k) < \inv(e_l) < \resp(e_i)$, which gives $\resp(e_i) < \resp(e_i)$.
 
-\begin{lem}
-\label{lemma5}
-Consider 3 operations, $e_1, e_2, e_3$, such that $e_1 \rightarrow e_2 <_p e_3$. Then $e_1 \rightarrow e_3$.
-\end{lem}
-\begin{proof}
-    If $e_1 \rightarrow e_2$, then by the definition of real time, $\text{resp}(e_1) < \text{inv}(e_2)$. Moreover, if $e_2 <_p e_3$, we also know by the definition of $<_p$ that $\text{inv}(e_2) < \text{inv}(e_3)$. Thus, we have $\text{resp}(e_1) < \text{inv}(e_3) < \text{inv}(e_3)$. But this gives us $e_1 \rightarrow e_3$.
-\end{proof}
-We carry on to prove $<_\psi$ is acyclic. By Property 3, we have two cases:
+By Property 3, there are only two cases to consider:
 
-\noindentparagraph{Case 1.} \textit{There are zero $\rightarrow$ edges in the minimum cycle.} Since $n \geq 2$, and by Properties 1 and 2, we know at least one edge is a $<_x$ edge and at least one edge is a $<_p$ edge. Also by properties 1 and 2, we know the cycle must alternate between $<_{x_i}$ and $<_{p_j}$ edges. 
+\noindentparagraph{Case 1.} \textit{There are zero $\rightarrow$ edges in the minimum cycle.} Since $n \geq 2$, and by Properties 1 and 2, at least one edge is a $<_x$ edge and at least one edge is a $<_p$ edge. Also by properties 1 and 2, the cycle must alternate between $<_{x_i}$ and $<_{p_j}$ edges. 
 
-Without loss of generality, re-index the cycle such that $e_1 <_{x_2} e_2 ... <_{p_1} e_1$.
-
-By repeated application of Lemmas~\ref{lemma1} and ~\ref{lemma2}, we see $\varepsilon_1 < \varepsilon_n$. But by Lemma~\ref{lemma2}, $\varepsilon_n < \varepsilon_1$, a contradiction.
+Without loss of generality, re-index the cycle such that $e_1 <_{x_2} e_2 ... <_{p_1} e_1$. By repeated application of Lemmas~\ref{lemma1} and ~\ref{lemma2}, $\varepsilon_1 < \varepsilon_n$. But by Lemma~\ref{lemma2}, $\varepsilon_n < \varepsilon_1$, a contradiction.
 
 \noindentparagraph{Case 2.} \textit{There is one $\rightarrow$ edge in the cycle.}
-Since $n \geq 2$, and by Properties 1 and 2, we know at least one edge is a $<_x$ edge and at least one edge is a $<_p$ edge. Also by properties 1 and 2, we know the cycle must alternate between $n-1$ $<_{x_i}$ and $<_{p_j}$ edges, and include a single $\rightarrow$ edge. By \ref{lemma5}, we also know that the edge following the $\rightarrow$ must be $<_x$. 
 
-Without loss of generality, re-index the cycle such that $e_1 ... e_{n-1} \rightarrow e_n <_x e_1$.
+Consider separately the cases where $n = 2$ and $n > 2$.
+
+If $n = 2$, without loss of generality, the cycle is of the form $e_1 <_p e_2 \rightarrow e_1$. By the definitions of $<_p$ and $\rightarrow$, we have $\text{inv}(e_1) < \text{inv}(e_2)$ and $\text{resp}(e_2) < \text{inv}(e_1)$. Since it must be true that $\text{inv}(e_2) < \text{resp}(e_2)$, we have $\text{inv}(e_1) < \text{inv}(e_1)$, a contradiction.
+
+Otherwise, if $n > 2$, by Properties 1 and 2 at least one edge is a $<_x$ edge and at least one edge is a $<_p$ edge. Also by properties 1 and 2, the cycle must alternate between $n-1$ $<_{x_i}$ and $<_{p_j}$ edges, and include a single $\rightarrow$ edge. Also, by \ref{lemma5}, the edge following the $\rightarrow$ must be $<_x$. 
+
+Without loss of generality, re-index the cycle such that $e_1 ... e_{n-1} \rightarrow e_n <_x e_1$, where the edges between $e_1$ and $e_2$ alternate between $<_p$ and $<_x$, making no assumptions about which appears first. Since $n > 2$, and by lemma \ref{lemma3}, $\epsilon_1 < \epsilon_n$. But by lemma \ref{lemma2}, $\epsilon_n < \epsilon_1$, a contradiction.
+\end{proof}
 
 
-Since $n \geq 2$, and by lemmas \ref{lemma3}, we know $\epsilon_1 < \epsilon_n$. But by lemma \ref{lemma2}, $\epsilon_n < \epsilon_1$, a constradiction.
+\begin{lem}
+    \label{lemmaD14}
+    A topological sort $S$ of $<_\psi$ over complete operations to objects $X$ is in the system sequential specification $\prod_{x \in X}\mathcal{G}_x$.
+\end{lem}
+\begin{proof}
+    Since each operation targets a single object $x \in X$, it suffices to only consider the orders of subsets of operations to each $x$. For a fixed $x$, this order is solely dictated by the partial order $<_x$ in the topological sort of $<_\psi$. Lemma \ref{lemmaD8} shows that the sequence $S_x$ defined by $<_x$ is in $x$'s sequential specification $\mathcal{G}_x$. Since $S$ is a topological sort over $<_\psi$, which by definition generalizes each $<_x$, it follows that the entire sequence $S$ is in $\prod_{x \in X}\mathcal{G}_x$.
+\end{proof}
+
+\begin{thm}
+    \sys{} guarantees \mdllong{}.
+\end{thm}
+
+\begin{proof}
+    Let $\alpha_1$ be a well-formed execution of \sys{}. Extend $\alpha_1$ to $\alpha_2$ by adding a response action for any complete operation $e$ that does not have one in $\alpha_1$.
+
+    Let $S$ be a topological sort of $<_\psi$ on the operations in $\alpha_2$. Lemma \ref{lemmaD14} implies that $S$ is in the system sequential specification. We now show that $S$ satisfies the two remaining properties of \mdllong{}, invocation and real time ordering.
+
+    (1) Consider two operations $e_1$ and $e_2$ such that $e_1 <_p e_2$. By the definition of $<_\psi$, $e_1 <_\psi e_2$, and since $S$ is a topological sort of $<_\psi$, $e_1 <_S e_2$.
+    
+    (2) Consider two operations $e_1$ and $e_2$ such that $e_1 \rightarrow e_2$. By the definition of $<_\psi$, $e_1 <_\psi e_2$, and since $S$ is a topological sort of $<_\psi$, $e_1 <_S e_2$.
 \end{proof}

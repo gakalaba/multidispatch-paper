@@ -693,21 +693,37 @@ The second requirement is more complex and requires that we avoid introducing an
         $\mathrm{init\_shard\_ts} \gets \mathrm{orderedLog}[-1].ts + 1$\\
         $\mathrm{shard\_ts} \gets \mathrm{init\_shard\_ts}$\\
         \For{$\mathrm{each}$ $ e \in E$}{
+            \If{$e.\mathrm{pred} = null \lor S_e = S_{e.\mathrm{pred}}$}{
+                \label{neginfy}
+                $e.\mathrm{pred\_ts} \gets -\infty$\\
+            }
             \Send $\textit{getPredecessorTS}(e.\mathrm{pred})$ to $S_{e.\mathrm{pred}}$\\
             \Wait receive $\textit{getPredecessorTSReply}(ts)$ from $S_e$\\
             $e.\mathrm{pred\_ts} \gets ts$\\
             $e.\mathrm{succ\_ts} \gets \infty$\\
         }
+        \State $A, B \gets \{\}$\\
         \For{$\mathrm{each}$ $s \in S$}{
             \Send $\textit{getSuccessor}(E)$ to $s$\\
             \Wait receive $\textit{getSuccessorReply}(TS)$ from $s$\\
             \For{$\mathrm{each}$ $ts_i \in TS$}{
                 $e_i.\mathrm{succ\_ts} \gets \min(e_i.\mathrm{succ\_ts}, \enspace ts_i)$\\
+                \If{$e_i.\mathrm{succ\_ts} = \infty$}{
+                    $B\adds(e)$\\
+                }
+                \Else{
+                    $A\adds(e)$\\
+                }
             }
         }
-        $E\sorting(\text{by} \enspace succ\_ts)$\\
-        $q \gets \constructQueue(E)$\\
-        \For{$e \in q$}{
+        $A\sorting(\text{by} \enspace pred\_ts)$\\
+        $q \gets \constructQueue()$\\
+        \For{$e \in A$}{
+            $e.\mathrm{ts} \gets \mathrm{max}(e.\mathrm{pred\_ts}+1, \mathrm{shard\_ts})$\\
+            $\mathrm{shard\_ts} \gets e.\mathrm{ts} + 1$\\
+            $q\qpush(e)$\\
+        }
+        \For{$e \in B$}{
             $e.\mathrm{ts} \gets \mathrm{max}(e.\mathrm{pred\_ts}+1, \mathrm{shard\_ts})$\\
             $\mathrm{shard\_ts} \gets e.\mathrm{ts} + 1$\\
             $q\qpush(e)$\\
@@ -769,6 +785,7 @@ The second requirement is more complex and requires that we avoid introducing an
             \If{$\exists \enspace \textit{o} \notin \mathrm{orderedLog} \enspace \land \enspace o.\mathrm{committed} \enspace \land \enspace o.\mathrm{pred} = e$}{
                 \Send $\textit{getSuccessor}(o)$ to all $S$~\\
                 \Wait receive $\textit{getSuccessorReply}(ts)$ from $S$ \\
+                \label{mytsminus1}
                 $V_i \gets ts-1$
             }
             \If{$\exists \enspace \textit{o} \in \mathrm{orderedLog} \enspace \land \enspace o.\mathrm{pred} = e$}{
