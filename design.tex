@@ -21,6 +21,7 @@
 \SetKwFunction{Recover}{NewLeader::Recover}
 \SetKwFunction{getPredecessor}{Leader::GetPredecessorTS}
 \SetKwFunction{getSuccessor}{Leader::GetSuccessorTS}
+\SetKwFunction{getChain}{Leader::GetTimestampChain}
 \SetKwFunction{leaderSubmit}{Leader::SubmitOpRecv}
 \SetKwFunction{replicaCoord}{Replica::coordRequestRecv}
 \SetKwFunction{shardMain}{Leader::ProcessEpoch}
@@ -33,9 +34,12 @@
 \SetKwFunction{removes}{.remove}
 \SetKwFunction{qpush}{.enq}
 \SetKwFunction{qpop}{.deq}
+\SetKwFunction{qpeak}{.peak}
 \SetKwFunction{sorting}{.sort}
+\SetKwFunction{createntry}{createEntry}
 \SetKwFunction{clearing}{.clear}
 \SetKwFunction{constructQueue}{constructQueue}
+\SetKwFunction{constructMap}{constructMap}
 \SetKwFunction{execute}{execute}
 
 \algnewcommand{\IfThenElse}[3]{% \IfThenElse{<if>}{<then>}{<else>}
@@ -596,18 +600,18 @@ The second requirement is more complex and requires that we avoid introducing an
     \State $\textit{prevReq} \gets \textit{NULL}$\\
     %\State $m$ \algorithmiccomment{mutex}\\
     \Function{\clientSubmit(\textit{Op}, K, V)}{
-        $\textit{Req} := (\textit{Op}, K, V, \textit{PID}, \textit{seqno})$\\
+        $\textit{pred} := \textit{prevReq}$\\
+        $\textit{prevReq} \gets \textit{Req}$\\
+        $\textit{Req} := (\textit{Op}, K, V, \textit{PID}, \textit{seqno}, pred)$\\
         $\textit{seqno} = \textit{seqno} + 1$\\
         %$m.lock()$ \algorithmiccomment{Critical section begins}\\
-        $\textit{prq} := \textit{prevReq}$\\
-        $\textit{prevReq} \gets \textit{Req}$\\
         %$m.unlock()$ \algorithmiccomment{Critical section begins}\\
-        \IfThen{$\textit{prevReq} \neq \textit{NULL}$}{\Send $\textit{SubmitCR}(\textit{prq}, \textit{Req})$ to $L_{K-1} \in \mathcal{L}$}\\
-        \Send $\textit{SubmitOp}(\textit{Req})$ to $L_K \in \mathcal{L}$\\        
+        \IfThen{$\textit{pred} \neq \textit{NULL}$}{\Send $\textit{SubmitCR}(\textit{pred}, \textit{Req})$ to $L_{pred} \in \mathcal{L}$}\\
+        \Send $\textit{SubmitOp}(\textit{Req})$ to $L_{Req} \in \mathcal{L}$\\        
     }
 
     \Function{\clientWait(\textit{Req})}{
-        \Wait receive $\textit{SubmitOpReply}(V)$ from $L_K \in \mathcal{L}$\\
+        \Wait receive $\textit{SubmitOpReply}(V)$ from ${Req} \in \mathcal{L}$\\
         \Wait until $\textit{rcvd} = \textit{Req.seqno}$\\
         %$m.lock()$\\
         $\IfThen{\textit{prevReq} = \textit{Req}}{\textit{prevReq} \gets \textit{NULL}}$\\
@@ -623,16 +627,30 @@ The second requirement is more complex and requires that we avoid introducing an
 %%%%% Shard Leader Communcation %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{algorithm}[!tb]
-    \Function{\leaderSubmit(\textit{Op}, K, V, P, s)}{
+    % \State $ShardTS \gets 0$\\
+    \Function{\leaderSubmit(\textit{Op}, K, V, P, s, pred)}{
+        $entry := \createntry(\textit{Op}, K, V, P, s, pred)$\\
+        \If{$entry.pred = NULL$}{
+            $entry.ts\_chain = []$\\
+            $my\_ts = ShardTS$\\
+            $Shard\_TS = my\_ts + 1$\\
+            $entry.ts\_chain\append(my\_ts)$\\
+            $\textit{orderedLog}\append(\textit{entry})$\\
+            \Send $\textit{FinalAccept}(\textit{entry})$ to all $r \in \mathcal{R}$\\
+        }
+        \Else{
+            $\textit{bufferedMap}\append(entry)$\\
+            \Send $\textit{Accept}(entry)$ to all $r \in \mathcal{R}$\\
+        }
         % \If{$ClientSeqnoMap[P] \neq s$}{
         %     $buffer_{P}(\{Op, K, V, P, s\})$\\
         %     \algorithmiccomment{Buffer per-client out of order requests}\\
         %     \Return\\
         % }
-        \algorithmiccomment{Issue this op}\\
-        $\textit{bufferedMap}\append(\textit{Op}, K, V, P, s, 0)$\\
+        % \algorithmiccomment{Issue this op}\\
+        % $\textit{bufferedMap}\append(\textit{Op}, K, V, P, s, 0)$\\
         % $ClientSeqnoMap[P]\mathrel{+}=1$\\
-        \Send $\textit{Accept}(\textit{Op}, K, V, P, s)$ to all $r \in \mathcal{R}$\\
+        % \Send $\textit{Accept}(\textit{Op}, K, V, P, s)$ to all $r \in \mathcal{R}$\\
         % \For{$(Op, K, V, P, s) \in buffer_{P}$}{
         % \algorithmiccomment{Issue OoO buffered ops that are now ready}\\
         %     \If{$ClientSeqnoMap[P] = s$}{
@@ -642,26 +660,31 @@ The second requirement is more complex and requires that we avoid introducing an
         %     }
         % }
     }
-    \Function{\leaderHandleAccept(\textit{req})}{
-        $\textit{req.acks}\mathrel{+}=1$\\
-        \If{$\textit{req.acks} \ge |Q|$} {
-             $\textit{req.committed} \gets \textit{True}$\\
+    \Function{\leaderHandleAccept(\text{entry})}{
+        $\textit{entry.acks}\mathrel{+}=1$\\
+        \If{$\textit{entry.acks} \ge |Q|$} {
+             $\textit{entry.committed} \gets \textit{True}$\\
         }
-        \If{$\textit{req.committed} \land \textit{req.coordinated}$}{
-            $\textit{req.ts} := \max(\textit{req.ts}+1, \textit{ShardTS})$\\
-            $\textit{ShardTS} := \max(\textit{req.ts}, \textit{ShardTS})+1$\\
-            $\textit{SubmitCRResp}(\textit{req.succrq}, \textit{True}, \textit{req.ts})$ to $L_{K+1} \in \mathcal{L}$\\
-            $\textit{bufferedMap}\pop(\textit{req})$\\
-            $\textit{orderedLog}\append(\textit{req})$\\
-            \Send $\textit{FinalAccept}(\textit{req})$ to all $r \in \mathcal{R}$\\            
+        \If{$\textit{entry.committed} \land \textit{entry.coordinated}$}{
+            $pred\_ts = timestamp\_chain[-1]$\\
+            $\textit{my\_ts} := \max(\textit{pred\_ts}+1, \textit{ShardTS})$\\
+            $entry.ts\_chain\append(my\_ts)$\\
+            \label{ts_assignment_pt2}
+            $\textit{ShardTS} := \textit{my\_ts}+1$\\
+            \If{$entry.succrq \neq NULL$}{
+                $\textit{SubmitCRResp}(\textit{entry.succrq}, \textit{True}, \textit{entry.ts\_chain})$ to $L_{succrq} \in \mathcal{L}$\\
+            }
+            $\textit{bufferedMap}\pop(\textit{entry})$\\
+            $\textit{orderedLog}\append(\textit{entry})$\\
+            \Send $\textit{FinalAccept}(\textit{entry})$ to all $r \in \mathcal{R}$\\            
         }
     }
-    \Function{\leaderHandleFinalAccept(\textit{req})}{
-        $\textit{req.facks}\mathrel{+}=1$\\
-        \If{$\textit{req.facks} \ge |Q|$}{
-            $v := \execute{req}$\\
-            $\textit{SubmitOpReply}(\textit{req}, v)$ to $\textit{client}$\\
-            \Send $\textit{Commit}(\textit{req})$ to all $r \in \mathcal{R}$\\
+    \Function{\leaderHandleFinalAccept(\text{entry})}{
+        $\textit{entry.facks}\mathrel{+}=1$\\
+        \If{$\textit{entry.facks} \ge |Q|$}{
+            \Send $\textit{Commit}(\textit{entry})$ to all $r \in \mathcal{R}$\\
+            $v := \execute{entry}$\\
+            $\textit{SubmitOpReply}(\textit{entry}, v)$ to $\textit{client}$\\
         }
     }   
     \caption{MD-Lin Shard Leader Communication}
@@ -689,117 +712,116 @@ The second requirement is more complex and requires that we avoid introducing an
                 \Wait receive $E_r$\\
                 $E \gets E\cup E_r$\\
         }
-        % $E \gets \bigcup\limits_{i=1}^{n} E_{i}$\\
-        $\mathrm{init\_shard\_ts} \gets \mathrm{orderedLog}[-1].ts + 1$\\
-        $\mathrm{shard\_ts} \gets \mathrm{init\_shard\_ts}$\\
         \For{$\mathrm{each}$ $ e \in E$}{
-            \If{$e.\mathrm{pred} = null \lor S_e = S_{e.\mathrm{pred}}$}{
-                \label{neginfy}
-                $e.\mathrm{pred\_ts} \gets -\infty$\\
-            }
-            \Send $\textit{getPredecessorTS}(e.\mathrm{pred})$ to $S_{e.\mathrm{pred}}$\\
-            \Wait receive $\textit{getPredecessorTSReply}(ts)$ from $S_e$\\
-            $e.\mathrm{pred\_ts} \gets ts$\\
-            $e.\mathrm{succ\_ts} \gets \infty$\\
+            $e.\mathrm{ts\_chain} \gets NULL$\\
         }
         \State $A, B \gets \{\}$\\
         \For{$\mathrm{each}$ $s \in S$}{
             \Send $\textit{getSuccessor}(E)$ to $s$\\
             \Wait receive $\textit{getSuccessorReply}(TS)$ from $s$\\
-            \For{$\mathrm{each}$ $ts_i \in TS$}{
-                $e_i.\mathrm{succ\_ts} \gets \min(e_i.\mathrm{succ\_ts}, \enspace ts_i)$\\
-                \If{$e_i.\mathrm{succ\_ts} = \infty$}{
-                    $B\adds(e)$\\
-                }
-                \Else{
-                    $A\adds(e)$\\
+            \For{$\mathrm{each}$ $ts\_chain_i \in TS$}{
+                \If{$ts\_chain_i \neq NULL$}{
+                    $ts\_chain_i\pop()$\\
+                    $e_i.ts\_chain = ts\_chain_i$\\
                 }
             }
         }
-        $A\sorting(\text{by} \enspace pred\_ts)$\\
-        $q \gets \constructQueue()$\\
-        \For{$e \in A$}{
-            $e.\mathrm{ts} \gets \mathrm{max}(e.\mathrm{pred\_ts}+1, \mathrm{shard\_ts})$\\
-            $\mathrm{shard\_ts} \gets e.\mathrm{ts} + 1$\\
-            $q\qpush(e)$\\
-        }
-        \For{$e \in B$}{
-            $e.\mathrm{ts} \gets \mathrm{max}(e.\mathrm{pred\_ts}+1, \mathrm{shard\_ts})$\\
-            $\mathrm{shard\_ts} \gets e.\mathrm{ts} + 1$\\
-            $q\qpush(e)$\\
-        }
-        % $E\sorting(\text{by} \enspace arrival\_ts)$\\
-        % $q \gets \constructQueue(E)$\\
-        
-        % % \For{$\mathrm{each}$ $e \in E$}{
-        % %     $q\qpush(e)$\\
-        % % }
-        % \State $A \gets \{\}$\\
-        % \State $C \gets \{\}$\\
-        % \For{$e \in q$}{
-        %     $e.\mathrm{ts} \gets \mathrrm{max}(e.\mathrm{pred\_ts}+1, \mathrm{shard\_ts})$\\
-        %     $\mathrm{shard\_ts} \gets e.\mathrm{ts} + 1$\\
-        %     \If{$e.\mathrm{ts} > e.\mathrm{succ\_ts}$}{
-        %         $C\adds(e)$\\
-        %     }
-        %     \Else{
-        %         $A\adds(e)$\\
-        %     }
-        %     $q\qpush(e)$\\
-        % }
-        % \While{$|C| > 0$}{
-        %     \State $A\_tmp \gets \{\}$\\
-        %     $q\clearing()$\\
-        %     $C\sorting(\text{by} \enspace succ\_ts)$\\
-        %     $\mathrm{shard\_ts} \gets \mathrm{orderedLog}[-1].ts + 1$\\
-        %     \For{$\mathrm{each}$ $e \in C$}{
-        %         $e.\mathrm{ts} \gets \mathrrm{max}(e.\mathrm{pred\_ts}+1, \mathrm{shard\_ts})$\\
-        %         $\mathrm{shard\_ts} \gets e.\mathrm{ts} + 1$\\
-        %         $q\qpush(e)$\\
-        %         $A\_tmp\adds(e)$\\
-        %     }
-        %     $C\clearing()$\\
-        %     \For{$\mathrm{each}$ $e \in A$}{
-        %         $e.\mathrm{ts} \gets \mathrrm{max}(e.\mathrm{pred\_ts}+1, \mathrm{shard\_ts})$\\
-        %         $\mathrm{shard\_ts} \gets e.\mathrm{ts} + 1$\\
-        %         \If{$e.\mathrm{ts} > e.\mathrm{succ\_ts}$}{
-        %             $C\adds(e)$\\
-        %         }
-        %         \Else{
-        %             $A\_tmp\adds(e)$\\
-        %         }
-        %         $q\qpush(e)$\\
-        %     }
-        %     $A \gets A\_tmp$\\
-        % }
-        \Send $\textit{FinalAccept}(\textit{q})$ to all $r \in \mathcal{R}$\\
-        \algorithmiccomment{New leader begins taking new client requests}
-    }
-    \Function{\getPredecessor(\textit{E})}{
-        \Wait until $e.\mathrm{coordinated} \enspace \lor \enspace \textit{e} \in \mathrm{orderedLog}$\\
-        \Return $e.\mathrm{ts}$
-    }
-    \Function{\getSuccessor(\textit{E})}{
-        $V \gets$ constructEmptySet($|E|$) \\
-        \For{$e_i \in E$}{
-            \If{$\exists \enspace \textit{o} \notin \mathrm{orderedLog} \enspace \land \enspace o.\mathrm{committed} \enspace \land \enspace o.\mathrm{pred} = e$}{
-                \Send $\textit{getSuccessor}(o)$ to all $S$~\\
-                \Wait receive $\textit{getSuccessorReply}(ts)$ from $S$ \\
-                \label{mytsminus1}
-                $V_i \gets ts-1$
-            }
-            \If{$\exists \enspace \textit{o} \in \mathrm{orderedLog} \enspace \land \enspace o.\mathrm{pred} = e$}{
-                $V_i \gets$ $o.\mathrm{ts}$
+        \For{$\mathrm{each}$ $e \in E$}{
+            \If{$e.\mathrm{ts\_chain} = NULL$}{
+                $B\adds(e)$\\
             }
             \Else{
-                $V_i \gets$ $\infty$
+                $A\adds(e)$\\
             }
         }
-        \Return $V$
+        $A\sorting(\text{by} \enspace ts\_chain[-1])$\\
+        $q \gets \constructQueue(A)$\\
+        $last \gets q\qpeak()$\\
+        $\mathrm{shard\_ts} \gets last.\mathrm{ts\_chain}[-1] + 1$\\
+        $D \gets \constructMap()$\\
+        \For{$e \in B$}{
+            \If{$e.\mathrm{PID} \notin D$}{
+                $D[e.\mathrm{PID}] \gets []$\\
+            }
+            \Else{
+                $D[e.\mathrm{PID}]\append(e)$\\
+            }
+        }
+        \For{$clientgroup \in D$}{
+            $clientgroup\sorting(\text{by} \enspace e.\mathrm{seqno})$\\
+            \For{$e \in clientgroup$}{
+                \label{B_begin}
+                \Send $\textit{getPredecessorTS}(e.\mathrm{pred})$ to $S_{e.\mathrm{pred}}$\\
+                \Wait receive $\textit{getPredecessorTSReply}(ts\_chain)$ from $S_e.\mathrm{pred}$\\
+                $pred\_ts \gets ts\_chain[-1]$\\
+                $my\_ts \gets \mathrm{max}(pred\_ts+1, \mathrm{shard\_ts})$\\
+                $\mathrm{shard\_ts} \gets my\_ts + 1$\\
+                $e.\mathrm{ts\_chain \gets ts\_chain}$\\
+                $e.\mathrm{ts\_chain}\append(my\_ts)$\\
+                \label{B_end}
+                $q\qpush(e)$\\
+            }
+        }
+        
+        \Send $\textit{FinalAccept}(\textit{q})$ to all $r \in \mathcal{R}$\\
+        \algorithmiccomment{New leader begins taking new client requests}\\
     }
     \caption{MD-Lin Failover}
     \label{failover}
 \end{algorithm}
+
+
+\begin{algorithm}[!tb]
+    \State $\textit{S}$ \algorithmiccomment{Set of all shards in cluster}\\
+    \State $\textit{R}$ \algorithmiccomment{Set of all replicas in shard}\\
+    % \State $n$ \algorithmiccomment{Number of replicas in shard}\\
+    \textbf{parameter} $E$ \algorithmiccomment{Committed but not ordered ops}\\
+    \Function{\getChain(E)}{
+        $V \gets$ constructEmptySet($|E|$) \\
+        \For{$e_i \in E$}{
+            \If{$\exists \enspace \textit{o} \notin \mathrm{orderedLog} \enspace \land \enspace o.\mathrm{committed} \enspace \land \enspace o.\mathrm{pred} = e$}{
+                \Send $\textit{getTimestampChain}(o)$ to all $S$~\\
+                \Wait receive $\textit{getTimestampChainReply}(ts\_chain)$ from $S$ \\
+                \label{mytsminus1}
+                $ts\_chain\pop()$\\
+                $V_i \gets ts\_chain$\\
+            }
+            \If{$\exists \enspace \textit{o} \in \mathrm{orderedLog} \enspace \land \enspace o.\mathrm{pred} = e$}{
+                $V_i \gets$ $o.\mathrm{ts\_chain}$
+            }
+            \Else{
+                $V_i \gets$ $NULL$
+            }
+        }
+        \Return $V$
+    }
+    \Function{\getPredecessor(\textit{e})}{
+        \Wait until $e.\mathrm{coordinated} \enspace \lor \enspace \textit{e} \in \mathrm{orderedLog}$\\
+        \Return $e.\mathrm{ts\_chain}$
+    }
+    % \Function{\getSuccessor(\textit{E})}{
+    %     $V \gets$ constructEmptySet($|E|$) \\
+    %     \For{$e_i \in E$}{
+    %         \If{$\exists \enspace \textit{o} \notin \mathrm{orderedLog} \enspace \land \enspace o.\mathrm{committed} \enspace \land \enspace o.\mathrm{pred} = e$}{
+    %             \Send $\textit{getSuccessor}(o)$ to all $S$~\\
+    %             \Wait receive $\textit{getSuccessorReply}(ts)$ from $S$ \\
+    %             \label{mytsminus1}
+    %             $V_i \gets ts-1$
+    %         }
+    %         \If{$\exists \enspace \textit{o} \in \mathrm{orderedLog} \enspace \land \enspace o.\mathrm{pred} = e$}{
+    %             $V_i \gets$ $o.\mathrm{ts}$
+    %         }
+    %         \Else{
+    %             $V_i \gets$ $\infty$
+    %         }
+    %     }
+    %     \Return $V$
+    % }
+    \caption{MD-Lin Failover Helper Functions}
+    \label{failover_helpers}
+\end{algorithm}
+
+
 
 
 \paragraph{Timestamps.}
@@ -983,39 +1005,47 @@ is guaranteed to have a larger timestamp than $o_1$ by reasoning similar to that
 % \end{algorithm}
 
 \begin{algorithm}[!tb]
-    \Function{\leaderRecvCR(\textit{rq}, \textit{succrq})}{
-    \algorithmiccomment{Received CR from client of succrq}\\
-        $\textit{rq.succrq} := \textit{succrq}$\\
-        \If{$\textit{entry} := \textit{orderedLog}\find(\textit{rq}) \neq \textit{NULL}$}{
-            $\textit{SubmitCRResp}(\textit{succrq}, \textit{True}, \textit{entry.ts})$ to $L_{K+1} \in \mathcal{L}$\\
+    \Function{\leaderRecvCR(\textit{pred}, \textit{req})}{
+    \algorithmiccomment{CR sent by client of req to shard carrying req's predecessor}\\
+        $\textit{pred.succrq} := \textit{req}$\\
+        \If{$\textit{entry} := \textit{orderedLog}\find(\textit{pred}) \neq \textit{NULL}$}{
+            $\textit{SubmitCRResp}(\textit{req}, \textit{True}, \textit{entry.ts\_chain})$ to $L_{req} \in \mathcal{L}$\\
             \Return\\
         }
-        \Wait $\textit{entry} := \textit{bufferedMap}\find(\textit{rq}) \neq \textit{NULL}$\\
-        \Wait $(\textit{entry.committed} \land \textit{entry.coordinated}) \lor \textit{bufferedMap}\find(\textit{rq}) = \textit{NULL}$\\
+        \Wait $\textit{entry} := \textit{bufferedMap}\find(\textit{pred}) \neq \textit{NULL}$\\
+        \Wait $(\textit{entry.committed} \land \textit{entry.coordinated}) \lor (\textit{bufferedMap}\find(\textit{pred}) = \textit{NULL})$\\
         \If{$\textit{entry.committed} \land \textit{entry.coordinated}$}{
-            $\textit{SubmitCRResp}(\textit{succrq}, \textit{True}, \textit{entry.ts})$ to $L_{K+1} \in \mathcal{L}$\\
+            $\textit{SubmitCRResp}(\textit{req}, \textit{True}, \textit{entry.ts\_chain})$ to $L_{req} \in \mathcal{L}$\\
         }
         \Else{
-            $\textit{SubmitCRResp}(\textit{succrq}, \textit{False}, -1)$ to $L_{K+1} \in \mathcal{L}$\\
+            $\textit{SubmitCRResp}(req, \textit{False}, NULL)$ to $L_{req} \in \mathcal{L}$\\
         }        
     }
-    \Function{\CRReply(\textit{req}, v, \textit{pre\_ts})}{
-        
+    \Function{\CRReply(\textit{req}, v, \textit{timestamp\_chain})}{
+        \Wait $entry := bufferedMap\find{req} \neq NULL$\\
         \If{$v = \textit{True}$}{
-            % \Wait $entry := bufferedMap\find{rq} \neq NULL$\\
-            $\textit{req.coordinated} \gets \textit{True}$\\
+            $\textit{entry.coordinated} \gets \textit{True}$\\
+            $entry.ts\_chain = timestamp\_chain$\\
             \If{$\textit{req.committed} \land \textit{req.coordinated}$}{
-                $\textit{req.ts} := \max(\textit{pred\_ts}+1, \textit{ShardTS})$\\
-                $\textit{ShardTS} := \textit{req.ts}+1$\\
-                $\textit{SubmitCRResp}(\textit{req.succrq}, \textit{True}, \textit{req.ts})$ to $L_{K+1} \in \mathcal{L}$\\
-                $\textit{bufferedMap}\pop(\textit{req})$\\
-                $\textit{orderedLog}\append(\textit{req})$\\
-                \Send $\textit{FinalAccept}(\textit{req})$ to all $r \in \mathcal{R}$\\            
+                \label{ts_assignment_pt1}
+                $pred\_ts = timestamp\_chain[-1]$\\
+                $\textit{my\_ts} := \max(\textit{pred\_ts}+1, \textit{ShardTS})$\\
+                $entry.ts\_chain\append(my\_ts)$\\
+                \label{ts_assignment_pt2}
+                $\textit{ShardTS} := \textit{my\_ts}+1$\\
+                \If{$entry.succrq \neq NULL$}{
+                    $\textit{SubmitCRResp}(\textit{entry.succrq}, \textit{True}, \textit{entry.ts\_chain})$ to $L_{succrq} \in \mathcal{L}$\\
+                }
+                $\textit{bufferedMap}\pop(\textit{entry})$\\
+                $\textit{orderedLog}\append(\textit{entry})$\\
+                \Send $\textit{FinalAccept}(\textit{entry})$ to all $r \in \mathcal{R}$\\            
             }
         }
         \Else{
-            $\textit{bufferedMap}\pop(\textit{rq})$\\
-            $\textit{SubmitCRResp}(\textit{rq.succrq}, \textit{False}, -1)$ to $L_{K+1} \in \mathcal{L}$\\
+            $\textit{bufferedMap}\pop(\textit{entry})$\\
+            \If{$entry.succrq \neq NULL$}{
+                $\textit{SubmitCRResp}(\textit{entry.succrq}, \textit{False}, NULL)$ to $L_{succrq} \in \mathcal{L}$\\
+            }
         }
     
     }
