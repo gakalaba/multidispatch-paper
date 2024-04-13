@@ -181,10 +181,10 @@ Transitioning to the coordinated state is thus the point where an operation will
 Prior to this transition, an operation may fail for two reasons.
 First, an operation will fail if it times out waiting for a coordination reply from its predecessor.
 This can be triggered when the predecessor operation never arrives--e.g., the predecessor operation was dropped by the network and then the client machine failed so it cannot retransmit it.
-Second, an operation will fail if it receives a special fail\_coordination reply instead of a success\_coordination reply.
+Second, an operation will fail if it receives a special \texttt{fail\_coordination} reply instead of a \texttt{success\_coordination} reply.
 In both cases, once an operation is failed the shard replies to the client with the failure.
-In addition, the shard sends a fail\_coordination message to its successor operation if a coordination request is queued.
-(If no coordination request is queued it tracks the failure so it can reply to a future coordination request with a fail\_coordination message.)
+In addition, the shard sends a \texttt{fail\_coordination} message to its successor operation if a coordination request is queued.
+(If no coordination request is queued it tracks the failure so it can reply to a future coordination request with a \texttt{fail\_coordination} message.)
 
 
 \paragraph{\Mdl{} Ordering.}
@@ -204,7 +204,7 @@ This makes the two orders compatible: if $o_1$ is issue-ordered before $o_2$ by 
 For example, consider a simple execution where client 1 issues $o_{a1}$ to shard A and then $o_{b2}$ to shard B and where client 2 issues $o_{b3}$ to shard B and then $o_{a4}$ to shard A.
 Three out of four possible orderings of these operations are acyclic and thus \mdl{},
 e.g., on shard A $o_{a1}$ then $o_{a4}$ and on shard B $o_{b3}$ then $o_{b2}$ is acyclic and thus there is a total order ($o_{a1}$,$o_{b3}$,$o_{b2}$,$o_{a4}$).
-One of the four possible ordering creates a cycle and thus is not \mdl{}:
+One of the four possible orderings creates a cycle and thus is not \mdl{}:
 on shard A $o_{a4}$ then $o_{a1}$ and on shard B $o_{b2}$ then $o_{b3}$.
 This interleaving creates a cycle where $o_{a4}$ is before $o_{a1}$ on shard A, $o_{a1}$ is before $o_{b2}$ by client 1's issue order, $o_{b2}$ is before $o_{b3}$ by shard B, and $o_{b3}$ is before $o_{a4}$ by client 2's issue order.
 Our coordination messages preclude this cycle by controlling when operations are added to ordered logs.
@@ -564,7 +564,7 @@ $1/4$ that of Multi-Paxos as the number of concurrent client requests grows.
 \label{subsec:leaderfailures}
 Each shard is made fault tolerant to $f$ failures with $2f+1$ replicas running Multi-Paxos~\cite{lamport1998paxos}.
 When a shard leader fails (or appears to fail), we call it the \textit{old leader}, and its replacement the \textit{new leader}.
-Before processing any new operations the new leader runs a recovery protocol that allows us to safely (re)coordinate committed operations that have not been ordered.
+Before processing any new operations the new leader runs a recovery protocol that allows us to safely (re)coordinate committed operations that have not been ordered (committed-but-not-ordered operations).
 This is what enables \sys{} to safely avoid replication being on-path between coordination replies, which keeps latency lower.
 
 The recovery protocol first has the new leader ensure it has a complete, up-to-date ordered log as in typical Multi-Paxos:
@@ -824,7 +824,7 @@ The second requirement is more complex and requires that we avoid introducing an
 
 
 
-\paragraph{Timestamps.}
+\paragraph{Timestamp Chains.}
 To ensure a compatible ordering with other shards, the new leader issues coordination requests to the predecessors of all operations in the committed-but-not-ordered set.
 These requests serve their aforementioned purpose and also return a predecessor timestamp, $ts_{pred}$, in the coordination reply. 
 
