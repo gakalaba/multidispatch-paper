@@ -3,6 +3,7 @@
 \SetKw{Wait}{wait}
 \SetKw{Call}{call}
 \SetKw{Return}{return}
+\SetKw{Continue}{continue}
 
 \SetKwComment{Comment}{//}{}
 
@@ -193,9 +194,8 @@ In addition, the shard sends a \texttt{fail\_coordination} message to its succes
 
 Execution on each shard is sequential, providing a legal total order for all operations on each shard.
 That order respects real-time ordering constraints because of the normal guarantees of Multi-Paxos.
-Relatedly, return ordering ensures real-time ordering 
-constraints are consistent with each client's issue order: If a client's operation finishes and potentially introduces new real-time constraints, return ordering guarantees the client's prior operations (by issue order) already finished.
-
+% Relatedly, return ordering ensures real-time ordering 
+% constraints are consistent with each client's issue order: If a client's operation finishes and potentially introduces new real-time constraints, return ordering guarantees the client's prior operations (by issue order) already finished.
 What is necessary then is to be able to show that the combination of all per-shard orderings and per-client issue ordering has a legal total order.
 This is true if and only if the ordering constraints are acyclic.
 The coordination messages ensure the constraints are acyclic by ensuring operations move to the coordinated state, and are thus added to each shard's ordered log, in their issue order.
@@ -581,12 +581,12 @@ Operations that are pending are equivalent to the network dropping the packet to
 Operations that are ordered will be added to the ordered log of the new leader as discussed above.
 This leaves operations that are committed and potentially also coordinated.
 We do not replicate the coordination status of an operation when committing it in order to minimize the number of messages that are sequential for concurrent client requests.
-Thus, we need to assume that any committed operation could have been coordinated at the \textit{old leader} and potentially coordinated its glfsuccessor.
+Thus, we need to assume that any committed operation could have been coordinated at the \textit{old leader} and potentially coordinated its successor.
 
 This brings two requirements for recovering committed-but-not-ordered operations.
 %
 First, we must ensure all committed-but-not-ordered operations are ordered consistently with any potential previous ordering.
-Second, we must ensure failover respects suffix-closed failures.
+Second, we must guarantee suffix-closed failures.
 The first requirement is more complex and requires that we avoid introducing any cycles when considering shard ordering and client issue orderings. It is satisfied by contacting successors (and potentially also predecessors) for timestamp chains that might have been sent in the coordination responses prior to failure and constructing a safe execution order from them.
 %The first requirement is trivially satisfied by executing the operations in any order.
 The second requirement is trivially satisfied by using the responses from contacting successors (and possible predecessors) to decide if the operation should be executed or not.
@@ -667,17 +667,28 @@ The second requirement is trivially satisfied by using the responses from contac
              $\textit{entry.committed} \gets \textit{True}$\\
         }
         \If{$\textit{entry.committed} \land \textit{entry.coordinated}$}{
-            $pred\_ts = timestamp\_chain[-1]$\\
-            $\textit{my\_ts} := \max(\textit{pred\_ts}+1, \textit{ShardTS})$\\
-            $entry.ts\_chain\append(my\_ts)$\\
-            \label{ts_assignment_pt2}
-            $\textit{ShardTS} := \textit{my\_ts}+1$\\
+            $v \gets entry.execute$\\
+            \If{$v \neq True \land entry.succrq \neq NULL$}{
+                $\textit{SubmitCRResp}(\textit{entry.succrq}, False, NULL)$ to $L_{succrq} \in \mathcal{L}$\\
+                \Return
+            }
+            % \If{$timestamp\_chain \neq NULL$}{
+                \label{ts_assignment_pt1}
+                $pred\_ts = timestamp\_chain[-1]$\\
+                $\textit{my\_ts} = \max(\textit{pred\_ts}+1, \textit{ShardTS})$\\
+                $entry.ts\_chain\append(my\_ts)$\\
+                \label{ts_assignment_pt2}
+                $\textit{ShardTS} = \textit{my\_ts}+1$\\
+            % }
+            % \Else{
+            %     $entry.ts\_chain = NULL$\\
+            % }
             \If{$entry.succrq \neq NULL$}{
-                $\textit{SubmitCRResp}(\textit{entry.succrq}, \textit{True}, \textit{entry.ts\_chain})$ to $L_{succrq} \in \mathcal{L}$\\
+                $\textit{SubmitCRResp}(\textit{entry.succrq}, True, \textit{entry.ts\_chain})$ to $L_{succrq} \in \mathcal{L}$\\
             }
             $\textit{bufferedMap}\pop(\textit{entry})$\\
             $\textit{orderedLog}\append(\textit{entry})$\\
-            \Send $\textit{FinalAccept}(\textit{entry})$ to all $r \in \mathcal{R}$\\            
+            \Send $\textit{FinalAccept}(\textit{entry})$ to all $r \in \mathcal{R}$\\             
         }
     }
     \Function{\leaderHandleFinalAccept(\text{entry})}{
@@ -697,12 +708,12 @@ The second requirement is trivially satisfied by using the responses from contac
     \algorithmiccomment{CR sent by client of req to shard carrying req's predecessor}\\
         $\textit{pred.succrq} := \textit{req}$\\
         \If{$\textit{entry} := \textit{orderedLog}\find(\textit{pred}) \neq \textit{NULL}$}{
-            $\textit{SubmitCRResp}(\textit{req}, \textit{entry.ts\_chain})$ to $L_{req} \in \mathcal{L}$\\
+            $\textit{SubmitCRResp}(\textit{req}, entry.execute, \textit{entry.ts\_chain})$ to $L_{req} \in \mathcal{L}$\\
             \Return\\
         }
         \Wait $\textit{entry} := \textit{bufferedMap}\find(\textit{pred}) \neq \textit{NULL}$\\
         \Wait $(\textit{entry.committed} \land \textit{entry.coordinated}) \lor (\textit{bufferedMap}\find(\textit{pred}) = \textit{NULL})$\\
-         $\textit{SubmitCRResp}(\textit{req}, \textit{entry.ts\_chain})$ to $L_{req} \in \mathcal{L}$\\
+         $\textit{SubmitCRResp}(\textit{req}, entry.execute, \textit{entry.ts\_chain})$ to $L_{req} \in \mathcal{L}$\\
         % \If{$\textit{entry.committed} \land \textit{entry.coordinated}$}{
         %     $\textit{SubmitCRResp}(\textit{req}, \textit{True}, \textit{entry.ts\_chain})$ to $L_{req} \in \mathcal{L}$\\
         % }
@@ -710,24 +721,29 @@ The second requirement is trivially satisfied by using the responses from contac
         %     $\textit{SubmitCRResp}(req, \textit{False}, NULL)$ to $L_{req} \in \mathcal{L}$\\
         % }        
     }
-    \Function{\CRReply(\textit{req}, \textit{timestamp\_chain})}{
+    \Function{\CRReply(\textit{req}, \textit{v} \textit{timestamp\_chain})}{
         \Wait $entry := bufferedMap\find{req} \neq NULL$\\
-        $\textit{entry.coordinated} \gets \textit{True}$\\
+        $\textit{entry.execute} \gets \textit{v}$\\
         $entry.ts\_chain = timestamp\_chain$\\
+        $\textit{entry.coordinated} \gets \textit{True}$\\
         \If{$\textit{entry.committed} \land \textit{entry.coordinated}$}{
-            \If{$timestamp\_chain \neq NULL$}{
+            \If{$v \neq True \land entry.succrq \neq NULL$}{
+                $\textit{SubmitCRResp}(\textit{entry.succrq}, False, NULL)$ to $L_{succrq} \in \mathcal{L}$\\
+                \Return
+            }
+            % \If{$timestamp\_chain \neq NULL$}{
                 \label{ts_assignment_pt1}
                 $pred\_ts = timestamp\_chain[-1]$\\
                 $\textit{my\_ts} = \max(\textit{pred\_ts}+1, \textit{ShardTS})$\\
                 $entry.ts\_chain\append(my\_ts)$\\
                 \label{ts_assignment_pt2}
                 $\textit{ShardTS} = \textit{my\_ts}+1$\\
-            }
-            \Else{
-                $entry.ts\_chain = NULL$\\
-            }
+            % }
+            % \Else{
+            %     $entry.ts\_chain = NULL$\\
+            % }
             \If{$entry.succrq \neq NULL$}{
-                $\textit{SubmitCRResp}(\textit{entry.succrq}, \textit{entry.ts\_chain})$ to $L_{succrq} \in \mathcal{L}$\\
+                $\textit{SubmitCRResp}(\textit{entry.succrq}, True, \textit{entry.ts\_chain})$ to $L_{succrq} \in \mathcal{L}$\\
             }
             $\textit{bufferedMap}\pop(\textit{entry})$\\
             $\textit{orderedLog}\append(\textit{entry})$\\
@@ -769,63 +785,45 @@ The second requirement is trivially satisfied by using the responses from contac
         }
         \For{$\mathrm{each}$ $ e \in E$}{
             $e.\mathrm{ts\_chain} \gets NULL$\\
+            $e.\mathrm{exec} \gets True$\\
         }
-        \State $A, B \gets \{\}$\\
-        \For{$\mathrm{each}$ $s \in S$}{
-            \Send $\textit{getSuccessor}(E)$ to $s$\\
-            \Wait receive $\textit{getSuccessorReply}(TS)$ from $s$\\
-            \For{$\mathrm{each}$ $ts\_chain_i \in TS$}{
-                \If{$ts\_chain_i \neq NULL$}{
-                    $ts\_chain_i\pop()$\\
-                    $e_i.ts\_chain = ts\_chain_i$\\
-                }
-            }
-        }
-        \For{$\mathrm{each}$ $e \in E$}{
-            \If{$e.\mathrm{ts\_chain} = NULL$}{
-                $B\adds(e)$\\
-            }
-            \Else{
-                $A\adds(e)$\\
-            }
-        }
+        \State $A, B, noExec \gets FilterSets(E)$\\
         $A\sorting(\text{by} \enspace ts\_chain[-1])$\\
         $q \gets \constructQueue(A)$\\
         $last \gets q\qpeak()$\\
         $\mathrm{shard\_ts} \gets last.\mathrm{ts\_chain}[-1] + 1$\\
-        $D \gets \constructMap()$\\
-        \For{$e \in B$}{
-            \If{$e.\mathrm{PID} \notin D$}{
-                $D[e.\mathrm{PID}] \gets []$\\
-            }
-            $D[e.\mathrm{PID}]\append(e)$\\
-        }
-        \For{$client \in D$}{
-            $client\sorting(\text{by} \enspace e.\mathrm{seqno})$\\
-            \For{$e \in client$}{
-                $ts\_chain := []$\algorithmiccomment{Note $[] \neq NULL$}\\
-                $pred\_ts \gets -1$\\
+        % $D \gets \constructMap()$\\
+        % \For{$e \in B$}{
+        %     \If{$e.\mathrm{PID} \notin D$}{
+        %         $D[e.\mathrm{PID}] \gets []$\\
+        %     }
+        %     $D[e.\mathrm{PID}]\append(e)$\\
+        % }
+        % \For{$client \in D$}{
+        %     $client\sorting(\text{by} \enspace e.\mathrm{seqno})$\\
+            % \For{$e \in client$}{
+            \For{$e \in B$}{
+                $ts\_chain, pred\_ts \gets [], -1$\\
                 \label{B_begin}
                 \If{$\textit{e.pred} \neq \textit{NULL}$}{
                     \Send $\textit{SubmitCR}(\textit{e.pred}, \textit{e})$ to $L_{e.pred} \in \mathcal{L}$\\
-                    \Wait receive $\textit{SubmitCRRespRecv}(e, ts\_chain)$ from $S_e.\mathrm{pred}$\\
-                    $pred\_ts \gets ts\_chain[-1]$\\
-                }
-                % \Send $\textit{getPredecessorTS}(e.\mathrm{pred})$ to $S_{e.\mathrm{pred}}$\\
-                \If{$ts\_chain \neq NULL$}{
-                    $my\_ts \gets \mathrm{max}(pred\_ts+1, \mathrm{shard\_ts})$\\
-                    $\mathrm{shard\_ts} \gets my\_ts + 1$\\
+                    \Wait receive $\textit{SubmitCRRespRecv}(e, exec, ts\_chain)$ from $S_e.\mathrm{pred}$\\
+                    \If{$exec = False$}{
+                        $e.\mathrm{ts\_chain \gets NULL}$\\
+                        $noExec\adds(e)$\\
+                        \Continue
+                    }
                     $e.\mathrm{ts\_chain \gets ts\_chain}$\\
-                    $e.\mathrm{ts\_chain}\append(my\_ts)$\\
+                    $pred\_ts \mathrm{\gets ts\_chain[-1]}$\\
                 }
-                \Else{
-                    $e.\mathrm{ts\_chain} \gets NULL$\\
-                }
+                $my\_ts \gets \mathrm{max}(pred\_ts+1, \mathrm{shard\_ts})$\\
+                $\mathrm{shard\_ts} \gets my\_ts + 1$\\
+                $e.\mathrm{ts\_chain}\append(my\_ts)$\\
                 \label{B_end}
                 $q\qpush(e)$\\
             }
-        }
-        
+        % }
+        $q\qpush(noExec)$\\
         \Send $\textit{FinalAccept}(\textit{q})$ to all $r \in \mathcal{R}$\\
         \algorithmiccomment{New leader begins taking new client requests}\\
     }
@@ -844,19 +842,54 @@ The second requirement is trivially satisfied by using the responses from contac
         \For{$e_i \in E$}{
             \If{$\exists \enspace \textit{o} \notin \mathrm{orderedLog} \enspace \land \enspace o.\mathrm{committed} \enspace \land \enspace o.\mathrm{pred} = e$}{
                 \Send $\textit{getTimestampChain}(o)$ to all $S$~\\
-                \Wait receive $\textit{getTimestampChainReply}(ts\_chain)$ from $S$ \\
+                \Wait receive $\textit{getTimestampChainReply}(ts\_chain, execute)$ from $S$ \\
                 \label{mytsminus1}
-                $ts\_chain\pop()$\\
-                $V_i \gets ts\_chain$\\
+                \If{$execute$}{
+                    $ts\_chain\pop()$\\
+                    $V_i \gets (ts\_chain, True)$\\
+                }
+                \Else{
+                    $V_i \gets (NULL, False)$\\
+                }
             }
             \If{$\exists \enspace \textit{o} \in \mathrm{orderedLog} \enspace \land \enspace o.\mathrm{pred} = e$}{
-                $V_i \gets$ $o.\mathrm{ts\_chain}$
+                $V_i \gets$ ($o.\mathrm{ts\_chain}, o.\mathrm{execute}$)
             }
             \Else{
-                $V_i \gets$ $NULL$
+                $V_i \gets$ ($NULL, True$)
             }
         }
         \Return $V$
+    }
+
+    \Function{FilterSets(E)}{
+        \State $A, B, noExec \gets \{\}$\\
+        \For{$\mathrm{each}$ $s \in S$}{
+            \Send $\textit{getSuccessor}(E)$ to $s$\\
+            \Wait receive $\textit{getSuccessorReply}(TS, exec)$ from $s$\\
+            \For{$\mathrm{each}$ $ts\_chain_i, exec_i \in TS, exec$}{
+                \If{$ts\_chain_i \neq NULL$}{
+                    $ts\_chain_i\pop()$\\
+                    $e_i.ts\_chain = ts\_chain_i$\\
+                }
+                \If{$exec_i \neq True$}{
+                    $e_i.exec = False$\\
+                }
+            }
+        }
+        \For{$\mathrm{each}$ $e \in E$}{
+            \If{$e.\mathrm{exec} = False$}{
+                $noExec\adds(e)$\\
+                \Continue
+            }
+            \If{$e.\mathrm{ts\_chain} = NULL$}{
+                $B\adds(e)$\\
+            }
+            \Else{
+                $A\adds(e)$\\
+            }
+        }
+        \Return $A, B, noExec$
     }
     % \Function{\getPredecessor(\textit{req})}{
         
@@ -893,24 +926,24 @@ The second requirement is trivially satisfied by using the responses from contac
 % These requests serve their aforementioned purpose and also return a predecessor timestamp, $ts_{pred}$, in the coordination reply. 
 
 % Once an operation is marked coordinated, in addition to ordering it in the log and replicating this order at a majority, the shard leader also assigns it a timestamp, ts, where $ts = \max(ts_{pred} + 1, ts_{leader})$ and $ts_{leader}$ is the leader's global timestamp. The shard leader also updates its global timestamp as $ts_{leader} = \max(ts_{leader}, ts_{op}) + 1$ after every operation that is marked coordinated and placed at an index in the log. An operation's timestamp is also replicated with the operation in the final ordering round to replicas.
+Timestamp chains are passed around through the coordination replies and are used to order committed-but-not-ordered operations during failover recovery. A coordination reply to an operation $o_{n+1}$ with $n$ predecessors contains a timestamp chain of length $n$ which reflects the timestamps assigned to all predecessors of $o_{n+1}$. The "timestamp" of an operation is assigned when it becomes committed and coordinated, and is appended to its timestamp chain, always making it the last entry of the chain. The details of timestamp assignment can be found in algorithms ~\ref{shardprotocolmessages} and ~\ref{shardprotocolcoord}.
 
+To ensure a compatible ordering with other shards, the new leader issues requests to the successors of all operations in the committed-but-not-ordered set asking for timestamp chains that might have been sent in coordination responses prior to failover. Since operations are not aware of their successors (only their predecessors), the new leader must contact all shards in the cluster to find the successors for each committed-but-not-ordered operation. While expensive, a new leader must establish new network connections with all shards in the cluster for post-failure operation, thus it can send requests for successor timestamp chains at the same time.
 
-To ensure a compatible ordering with other shards, the new leader issues requests to the successors of all operations in the committed-but-not-ordered set asking for timestamp chains that might have been sent in coordination responses prior to failover. Since operations are not aware of their successors (only their predecessors), the new leader must contact all shards in the cluster to find the successors for each committed-but-not-ordered operation. While expensive, a new leader must establish connections with all shards in the cluster for post-failure operation, thus it can send requests for successor timestamp chains at the same time.
-
-Because we do not replicate the coordination status of an operation before sending a coordination response to its successor, new leaders must ensure that an operation's recovered timestamp is always compatible with any coordination responses sent by a prior leader. More specifically, an operation's timestamp must not increase compared to any previously assigned timestamp; otherwise, its timestamp may exceed its successor's.
+Because we do not replicate the coordination status or timestamp chain of an operation before sending a coordination response to its successor, new leaders must ensure that an operation's recovered timestamp (last element in its    timestamp chain) is always compatible with any coordination responses sent by a prior leader. More specifically, an operation's timestamp must not increase compared to any previously assigned timestamp; otherwise, its timestamp may exceed its successor's.
 
 All operations are in one of two states: either they had been coordinated prior to failure \textit{and} coordinated their successor, or they had never coordinated their successors (and possibly were never coordinated themselves). Operations in the first state will receive a non-NULL timestamp chain from their successor and thus be able to exactly recover their old timestamp chain from prior to failure. 
 % Operations in the first state will receive a non-NULL timestamp chain from their successor and thus assign their own timestamp chain as the returned value excluding the last entry. This assigned timestamp chain exactly matches the old timestamp chain the operation had prior to failure. 
 
-Conversely, committed-but-not-ordered operations in the second state will receive a NULL timestamp chain and thus need to construct a new timestamp chain. To do so, the new leader (re)issues coordination requests to all the predecessors of these operations and then assigns their timestamp chain as the returned value with a new timestamp appended. This new timestamp is calculated using the operation's predecessor timestamp and the shard's local timestamp just as under normal operation when an operation becomes committed and coordinated.
+Conversely, committed-but-not-ordered operations in the second state will receive a NULL timestamp chain and thus need to construct a new timestamp chain (and timestamp). To do so, the new leader (re)issues coordination requests to all the predecessors of these operations and then assigns their timestamp chain as the returned value with a new timestamp appended. This new timestamp is calculated using the operation's predecessor timestamp and the shard's local timestamp just as under normal operation when an operation becomes committed and coordinated.
 
 % To ensure this, during recovery, only an operation's successor timestamp is used to determine its timestamp.
 % (One more than the predecessor's is the minimum timestamp that could have been previously assigned to the operation.) 
-Once all operations in the committed-but-not-ordered set are coordinated they are sorted by their timestamps (last element in timestamp chain), added to the ordered log, and replicated.
+Once all operations in the committed-but-not-ordered set are coordinated they are sorted by their timestamps, added to the ordered log, and replicated.
 After all operations in that set have been replicated and thus moved to the ordered status, the new leader sets its shard timestamp and starts processing new operations from clients.
 
 Since operations either recover their old timestamp chains from prior to failure or are assigned new timestamp chains which contain timestamps (last entry) that are strictly greater than their predecessor, this protocol ensures the new leader executes recovered operations
-in an order consistent with the clients' issue orders and the execution orders at other shards. If an operation $o_1$ is constrained to precede another operation $o_2$ through any combination of issue and per-shard ordering, $o_2$
+in an order consistent with the clients' issue orders and the execution orders at other shards. Moreover, since timestamps strictly increase across entries in each shard's log, executing in sorted order also guarantees safety. If an operation $o_1$ is constrained to precede another operation $o_2$ through any combination of issue and per-shard ordering, $o_2$
 is guaranteed to have a larger timestamp than $o_1$ by reasoning similar to that above during normal operation. 
 
 
