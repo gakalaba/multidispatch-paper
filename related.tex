@@ -25,9 +25,9 @@ included the assumption that each process issues operations
 sequentially~\cite{attiya1993seqlin}.
 
 But like other, weaker consistency
-models~\cite{ahamad1995causal,lloyd2011cops,terry1995bayou,deCandia2007dynamo}, 
+models~\cite{ahamad1995causal,lloyd2011cops,terry1995bayou,deCandia2007dynamo, antipode}, 
 sequential consistency introduces a trade-off. Although it enables
-better-performing systems, it makes building correct applictions more difficult. In contrast, through its transformation
+better-performing systems, it makes building correct applications more difficult, especially since applications today interact with many different services that provide unique consistency guarantees. In contrast, through its transformation
 and accompanying equivalence result, \MDL{} offers transformed
 applications better performance while guaranteeing they behave 
 identically to the original application.
