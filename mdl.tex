@@ -24,7 +24,7 @@ An application's processes define a prefix-closed set of \textit{executions},
 which are sequences $s_0,\pi_1,s_1,\ldots$ of alternating \textit{states} and
 \textit{actions}, starting and ending with a state. An application's state
 is an $n$-length vector containing the state of each process.
-
+%
 Each action is a step taken by exactly one process and is one of three types:
 \textit{internal}, \textit{input}, or \textit{output}. Internal actions model
 local computation. Processes use input and output actions to interact with
@@ -94,7 +94,7 @@ $\res(o)$ left in $\complete(\alpha)|P$ until it immediately follows $o$'s
 invocation $\inv(o)$.
 Importantly, this maintains a process's
 \textit{issue order}, the order it invoked its operations.
-
+%
 Two actions in an execution $\alpha$ are
 ordered in real time~\cite{herlihy1990linearizability}, denoted
 $\pi_1 \rt_\alpha \pi_2$, if $\pi_1$ is a response, $\pi_2$ is an
@@ -132,9 +132,9 @@ We refer to this property as \textit{suffix-closed failure semantics}.
 
 
 In an \MDL{} system, suffix-closed failures must be guaranteed even in the
-face of concurrent operations from the same process, which may be to
+face of concurrent operations from the same process, potentially to
 objects on different shards. As we will see in Section~\ref{sec:mdl:zookeeper},
-guaranteeing suffix-closed failures is one way in which existing systems do not implement \mdl{}.  
+guaranteeing suffix-closed failures is one way in which existing systems do not provide \mdl{}.  
 
 \wl{Should we punch up this discussion? I think it's a major way we're different from A-Linearizability and its necessary! For instance, we need this for our equivalence result right?! That seems important!}
 

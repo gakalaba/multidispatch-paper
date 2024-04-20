@@ -12,6 +12,7 @@
 \usepackage{comment}
 \usepackage{grffile}
 \usepackage[numbers]{natbib}
+\usepackage{minted}
 
 % inlined bib file
 % \usepackage{filecontents}
@@ -121,13 +122,13 @@
 
 %don't want date printed
 %\date{\vspace{-5ex}} %% MAX
-\date{\vspace{-2ex}}
+\date{\vspace{-5ex}}
 \setlength{\droptitle}{-3em}
 
 \title{\Large \bf Multi-Dispatch Linearizability Liberates Applications for Lower Latency\vspace{-2ex}}
 
 \author{
-{\rm Submission \#1400}
+{\rm Submission \#1153}
 } % end author
 
 \maketitle
@@ -155,8 +156,12 @@
 
 \clearpage
 \appendix
+\input{retwis_code.tex}
 \input{equivalence.tex}
+\input{algorithms.tex}
 \input{correctness.tex}
+\input{tput.tex}
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \end{document}

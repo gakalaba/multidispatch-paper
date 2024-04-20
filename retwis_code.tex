@@ -1,0 +1,16 @@
+\section{Retwis Post Function}
+\label{sec:retwis-post}
+As a concrete example of where \mdl{} is necessary we shown and discuss the Retwis post function in \cref{fig:retwis-post}.
+\begin{figure*}[t!]
+\begin{minted}{php}
+$postid = $r->incr("next_post_id");
+$r->hmset("post:$postid","user_id",$User['id'],"body",$status);
+$followers = $r->zrange("followers:".$User['id'],0,-1);
+foreach($followers as $fid) { $r->lpush("posts:$fid",$postid); }
+# Push the post on the timeline, and trim the timeline to the newest 1000 elements.
+$r->lpush("timeline",$postid);
+$r->ltrim("timeline",0,1000);
+\end{minted}
+\caption{The Retwis post function creates a new post and adds a reference to it in each of the timelines of a the poster's followers, as well as a global timeline. It also truncates the global timeline to the 1000 most recent posts. As written, each operation must complete before initiating the next, resulting in many round trips to the datastore. Most of these operations have no data- or control-flow dependencies on each other. However, they cannot be naively parallelized, as many of them \emph{must} occur in a particular order. For example, the post id must appear in any timelines until the post is created.}
+\label{fig:retwis-post}
+\end{figure*}

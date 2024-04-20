@@ -71,7 +71,7 @@ In summary, this paper makes the following contributions:
 \begin{itemize}[leftmargin=*]
 \item The definition of \mdl{}, a Linearizability-like consistency model that allows applications to use multi-dispatch for lower latency.
 \item A proof of external equivalence between an application running on \sdl{} and a transformation of it running on \mdl{}, allowing programmers to reason only about Linearizability while using multi-dispatch.
-\item The design, implementation, and evaluation of the first protocol for cross-shard MD-Linearizability, \sys{}, which provides substantially lower end-to-end latency for applications than a Linearizable baseline.
+\item The design, implementation, proof of correctness, and evaluation of the first protocol for cross-shard MD-Linearizability, \sys{}, which provides substantially lower end-to-end application latency than a Linearizable baseline.
 %\item An implementation and evaluation of \sys{} that shows it approaches a 75\% reduction in latency for applications compared to a Linearizable baseline as fanout increases.
 \end{itemize}
 

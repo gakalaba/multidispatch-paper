@@ -11,7 +11,7 @@ Similarly, A-Linearizability~\cite{hunt2010zookeeper} requires an issue-order fo
 
 This earlier work, however, does not provide `strong' consistency comparable to Linearizability.
 Session guarantees do not ensure any real-time order, e.g., a write that finished yesterday might not been seen by a read issued today.
-A-Linearizability, despite its name, only provides Linearizability-like consistency for write operations and also has stale reads.
+A-Linearizability, despite its name, only provides Linearizability-like consistency for write operations but also has stale reads.
 Thus, \Mdl{} is distinct from this earlier work it builds on by providing `strong' Linearizability-like consistency for all operations.
 
 Sequential consistency was originally described in the context of

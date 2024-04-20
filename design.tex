@@ -1,54 +1,3 @@
-\SetKw{State}{state}
-\SetKw{Send}{send}
-\SetKw{Wait}{wait}
-\SetKw{Call}{call}
-\SetKw{Return}{return}
-\SetKw{Continue}{continue}
-
-\SetKwComment{Comment}{//}{}
-
-\SetKwProg{Function}{function}{}{end}
-
-\SetKwBlock{parallelblk}{Do In Parallel}{end}
-\SetKwBlock{atomicblk}{atomic}{end}
-
-\SetKwFunction{atomicAdd}{AtomicAdd}
-\SetKwFunction{sortps}{sortByLamportEpoch}
-\SetKwFunction{executeRetClie}{executeAndSubmitOpReply}
-\SetKwFunction{clientSubmit}{Client::SubmitOp}
-\SetKwFunction{leaderHandleAccept}{Leader::AcceptRespRecv}
-\SetKwFunction{leaderHandleFinalAccept}{Leader::FinalAcceptRespRecv}
-\SetKwFunction{clientWait}{Client::SubmitOpReplyRecv}
-\SetKwFunction{Recover}{NewLeader::Recover}
-\SetKwFunction{getPredecessor}{Leader::GetPredecessorTS}
-\SetKwFunction{getSuccessor}{Leader::GetSuccessorTS}
-\SetKwFunction{getChain}{Leader::GetTimestampChain}
-\SetKwFunction{leaderSubmit}{Leader::SubmitOpRecv}
-\SetKwFunction{replicaCoord}{Replica::coordRequestRecv}
-\SetKwFunction{shardMain}{Leader::ProcessEpoch}
-\SetKwFunction{leaderRecvCR}{Leader::SubmitCRRecv}
-\SetKwFunction{CRReply}{Leader::SubmitCRRespRecv}
-\SetKwFunction{append}{.append}
-\SetKwFunction{find}{.find}
-\SetKwFunction{pop}{.pop}
-\SetKwFunction{adds}{.add}
-\SetKwFunction{removes}{.remove}
-\SetKwFunction{qpush}{.enq}
-\SetKwFunction{qpop}{.deq}
-\SetKwFunction{qpeak}{.peak}
-\SetKwFunction{sorting}{.sort}
-\SetKwFunction{createntry}{createEntry}
-\SetKwFunction{clearing}{.clear}
-\SetKwFunction{constructQueue}{constructQueue}
-\SetKwFunction{constructMap}{constructMap}
-\SetKwFunction{execute}{execute}
-
-\algnewcommand{\IfThenElse}[3]{% \IfThenElse{<if>}{<then>}{<else>}
-  \algorithmicif\ #1\ \algorithmicthen\ #2\ \algorithmicelse\ #3}
-
-\algnewcommand{\IfThen}[2]{% \IfThenElse{<if>}{<then>}{<else>}
-  \algorithmicif\ #1\ \algorithmicthen\ #2}
-
 \section{\sys{}}
 \label{sec:design}
 % 1. what are the key features it needs to do. which component of the protocol does that.
@@ -102,7 +51,7 @@ and lower latency.
 
 \paragraph{Components and Protocol.}
 \sys{} comprises two components: \textit{clients} that submit operations to a co-located \textit{client library} and \textit{shards} that store data and execute operations.
-The client and shard protocols are shown in Algorithms~\ref{clientprotocol}, ~\ref{shardprotocolmessages}, and~\ref{shardprotocolcoord}.
+The client and shard protocols are shown in Algorithms~\ref{clientprotocol}, ~\ref{shardprotocolmessages}, and~\ref{shardprotocolcoord} in \cref{sec:pseudo}.
 
 \wl{should we say client-library maintains the set of outstanding operations and the predecessor id?\\
 and the shards maintain a pending set, ordered log, and shard\_ts?}
@@ -148,7 +97,7 @@ and
 When an operation first arrives at a shard leader, it is \textit{pending} and it is added to the set of pending operations.
 The leader replicates the operation to its replicas, and once it receives a quorum of acknowledgements,
 the operation is \textit{committed}.
-Our protocol guarantees that a committed operation is eventually executed.
+Our protocol guarantees that a committed operation is eventually executed, assuming it is not a part of a suffix of failures.
 If this operation has a null predecessor it is immediately marked as \textit{coordinated}.
 If this operation has a predecessor, then the leader waits until it receives the coordinate reply message from the predecessor to mark it as coordinated.
 Once an operation is coordinated, it checks if it has received a coordination request, and if so immediately sends a coordination reply to the leader for \textit{its} successor operation.
@@ -209,8 +158,6 @@ on shard A $o_{a4}$ then $o_{a1}$ and on shard B $o_{b2}$ then $o_{b3}$.
 This interleaving creates a cycle where $o_{a4}$ is before $o_{a1}$ on shard A, $o_{a1}$ is before $o_{b2}$ by client 1's issue order, $o_{b2}$ is before $o_{b3}$ by shard B, and $o_{b3}$ is before $o_{a4}$ by client 2's issue order.
 Our coordination messages preclude this cycle by controlling when operations are added to ordered logs.
 In this case, they would ensure $o_{a4}$ is only added to the ordered log at shard A after $o_{b3}$ is added to the ordered log at shard B. In this example, this is after $o_{b2}$ is added to the ordered log, which in turn was only after $o_{a1}$ was added to the ordered log at shard A.
-
-A complete proof that \sys{} provides \Mdl{} ordering is elided for brevity.
 
 %\subsubsection{Operation vs.\@ End-To-End Latency}
 \paragraph{Operation vs.\@ End-to-end Latency.}
@@ -591,342 +538,13 @@ The first requirement is more complex and requires that we avoid introducing any
 %The first requirement is trivially satisfied by executing the operations in any order.
 The second requirement is trivially satisfied by using the responses from contacting successors (and possible predecessors) to decide if the operation should be executed or not.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%% Client %%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{algorithm}[!tb]
-    \State $\textit{PID} \gets$ unique client ID\\
-    \State $\mathcal{L} \gets \{...\}$ \algorithmiccomment{Shard Leaders}\\
-    \State $\textit{seqno} \gets 0$, $\textit{rcvd} \gets 0$  \algorithmiccomment{Per Client}\\
-    \State $\textit{prevReq} \gets \textit{NULL}$\\
-    %\State $m$ \algorithmiccomment{mutex}\\
-    \Function{\clientSubmit(\textit{Op}, K, V)}{
-        $\textit{pred} := \textit{prevReq}$\\
-        $\textit{prevReq} \gets \textit{Req}$\\
-        $\textit{Req} := (\textit{Op}, K, V, \textit{PID}, \textit{seqno}, pred)$\\
-        $\textit{seqno} = \textit{seqno} + 1$\\
-        %$m.lock()$ \algorithmiccomment{Critical section begins}\\
-        %$m.unlock()$ \algorithmiccomment{Critical section begins}\\
-        \IfThen{$\textit{pred} \neq \textit{NULL}$}{\Send $\textit{SubmitCR}(\textit{pred}, \textit{Req})$ to $L_{pred} \in \mathcal{L}$}\\
-        \Send $\textit{SubmitOp}(\textit{Req})$ to $L_{Req} \in \mathcal{L}$\\        
-    }
-
-    \Function{\clientWait(\textit{Req})}{
-        \Wait receive $\textit{SubmitOpReply}(V)$ from ${Req} \in \mathcal{L}$\\
-        \Wait until $\textit{rcvd} = \textit{Req.seqno}$\\
-        %$m.lock()$\\
-        $\IfThen{\textit{prevReq} = \textit{Req}}{\textit{prevReq} \gets \textit{NULL}}$\\
-        $\textit{rcvd} \gets \textit{rcvd} + 1$\\
-        %$m.unlock()$\\
-        \Return $V$\\
-    }
-    \caption{MD-Lin Client}
-    \label{clientprotocol}
-\end{algorithm}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%% Shard Leader Communcation %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{algorithm}[!tb]
-    % \State $ShardTS \gets 0$\\
-    \Function{\leaderSubmit(\textit{Op}, K, V, P, s, pred)}{
-        $entry := \createntry(\textit{Op}, K, V, P, s, pred)$\\
-        \If{$entry.pred = NULL$}{
-            $entry.ts\_chain = []$\\
-            $my\_ts = ShardTS$\\
-            $Shard\_TS = my\_ts + 1$\\
-            $entry.ts\_chain\append(my\_ts)$\\
-            $\textit{orderedLog}\append(\textit{entry})$\\
-            \Send $\textit{FinalAccept}(\textit{entry})$ to all $r \in \mathcal{R}$\\
-        }
-        \Else{
-            $\textit{bufferedMap}\append(entry)$\\
-            \Send $\textit{Accept}(entry)$ to all $r \in \mathcal{R}$\\
-        }
-        % \If{$ClientSeqnoMap[P] \neq s$}{
-        %     $buffer_{P}(\{Op, K, V, P, s\})$\\
-        %     \algorithmiccomment{Buffer per-client out of order requests}\\
-        %     \Return\\
-        % }
-        % \algorithmiccomment{Issue this op}\\
-        % $\textit{bufferedMap}\append(\textit{Op}, K, V, P, s, 0)$\\
-        % $ClientSeqnoMap[P]\mathrel{+}=1$\\
-        % \Send $\textit{Accept}(\textit{Op}, K, V, P, s)$ to all $r \in \mathcal{R}$\\
-        % \For{$(Op, K, V, P, s) \in buffer_{P}$}{
-        % \algorithmiccomment{Issue OoO buffered ops that are now ready}\\
-        %     \If{$ClientSeqnoMap[P] = s$}{
-        %         $bufferedMap\append{(Op, K, V, P, s, 0)}$\\
-        %         $ClientSeqnoMap[P]\mathrel{+}=1$\\
-        %         \Send $Accept(Op, K, V, P, s)$ to all $r \in \mathcal{R}$\\
-        %     }
-        % }
-    }
-    \Function{\leaderHandleAccept(\text{entry})}{
-        $\textit{entry.acks}\mathrel{+}=1$\\
-        \If{$\textit{entry.acks} \ge |Q|$} {
-             $\textit{entry.committed} \gets \textit{True}$\\
-        }
-        \If{$\textit{entry.committed} \land \textit{entry.coordinated}$}{
-            $v \gets entry.execute$\\
-            \If{$v \neq True \land entry.succrq \neq NULL$}{
-                $\textit{SubmitCRResp}(\textit{entry.succrq}, False, NULL)$ to $L_{succrq} \in \mathcal{L}$\\
-                \Return
-            }
-            % \If{$timestamp\_chain \neq NULL$}{
-                \label{ts_assignment_pt1}
-                $pred\_ts = timestamp\_chain[-1]$\\
-                $\textit{my\_ts} = \max(\textit{pred\_ts}+1, \textit{ShardTS})$\\
-                $entry.ts\_chain\append(my\_ts)$\\
-                \label{ts_assignment_pt2}
-                $\textit{ShardTS} = \textit{my\_ts}+1$\\
-            % }
-            % \Else{
-            %     $entry.ts\_chain = NULL$\\
-            % }
-            \If{$entry.succrq \neq NULL$}{
-                $\textit{SubmitCRResp}(\textit{entry.succrq}, True, \textit{entry.ts\_chain})$ to $L_{succrq} \in \mathcal{L}$\\
-            }
-            $\textit{bufferedMap}\pop(\textit{entry})$\\
-            $\textit{orderedLog}\append(\textit{entry})$\\
-            \Send $\textit{FinalAccept}(\textit{entry})$ to all $r \in \mathcal{R}$\\             
-        }
-    }
-    \Function{\leaderHandleFinalAccept(\text{entry})}{
-        $\textit{entry.facks}\mathrel{+}=1$\\
-        \If{$\textit{entry.facks} \ge |Q|$}{
-            \Send $\textit{Commit}(\textit{entry})$ to all $r \in \mathcal{R}$\\
-            $v := \execute{entry}$\\
-            $\textit{SubmitOpReply}(\textit{entry}, v)$ to $\textit{client}$\\
-        }
-    }   
-    \caption{MD-Lin Shard Leader Communication}
-    \label{shardprotocolmessages}
-\end{algorithm}
-
-\begin{algorithm}[!tb]
-    \Function{\leaderRecvCR(\textit{pred}, \textit{req})}{
-    \algorithmiccomment{CR sent by client of req to shard carrying req's predecessor}\\
-        $\textit{pred.succrq} := \textit{req}$\\
-        \If{$\textit{entry} := \textit{orderedLog}\find(\textit{pred}) \neq \textit{NULL}$}{
-            $\textit{SubmitCRResp}(\textit{req}, entry.execute, \textit{entry.ts\_chain})$ to $L_{req} \in \mathcal{L}$\\
-            \Return\\
-        }
-        \Wait $\textit{entry} := \textit{bufferedMap}\find(\textit{pred}) \neq \textit{NULL}$\\
-        \Wait $(\textit{entry.committed} \land \textit{entry.coordinated}) \lor (\textit{bufferedMap}\find(\textit{pred}) = \textit{NULL})$\\
-         $\textit{SubmitCRResp}(\textit{req}, entry.execute, \textit{entry.ts\_chain})$ to $L_{req} \in \mathcal{L}$\\
-        % \If{$\textit{entry.committed} \land \textit{entry.coordinated}$}{
-        %     $\textit{SubmitCRResp}(\textit{req}, \textit{True}, \textit{entry.ts\_chain})$ to $L_{req} \in \mathcal{L}$\\
-        % }
-        % \Else{
-        %     $\textit{SubmitCRResp}(req, \textit{False}, NULL)$ to $L_{req} \in \mathcal{L}$\\
-        % }        
-    }
-    \Function{\CRReply(\textit{req}, \textit{v} \textit{timestamp\_chain})}{
-        \Wait $entry := bufferedMap\find{req} \neq NULL$\\
-        $\textit{entry.execute} \gets \textit{v}$\\
-        $entry.ts\_chain = timestamp\_chain$\\
-        $\textit{entry.coordinated} \gets \textit{True}$\\
-        \If{$\textit{entry.committed} \land \textit{entry.coordinated}$}{
-            \If{$v \neq True \land entry.succrq \neq NULL$}{
-                $\textit{SubmitCRResp}(\textit{entry.succrq}, False, NULL)$ to $L_{succrq} \in \mathcal{L}$\\
-                \Return
-            }
-            % \If{$timestamp\_chain \neq NULL$}{
-                \label{ts_assignment_pt1}
-                $pred\_ts = timestamp\_chain[-1]$\\
-                $\textit{my\_ts} = \max(\textit{pred\_ts}+1, \textit{ShardTS})$\\
-                $entry.ts\_chain\append(my\_ts)$\\
-                \label{ts_assignment_pt2}
-                $\textit{ShardTS} = \textit{my\_ts}+1$\\
-            % }
-            % \Else{
-            %     $entry.ts\_chain = NULL$\\
-            % }
-            \If{$entry.succrq \neq NULL$}{
-                $\textit{SubmitCRResp}(\textit{entry.succrq}, True, \textit{entry.ts\_chain})$ to $L_{succrq} \in \mathcal{L}$\\
-            }
-            $\textit{bufferedMap}\pop(\textit{entry})$\\
-            $\textit{orderedLog}\append(\textit{entry})$\\
-            \Send $\textit{FinalAccept}(\textit{entry})$ to all $r \in \mathcal{R}$\\            
-        }
-        % \Else{
-        %     $\textit{bufferedMap}\pop(\textit{entry})$\\
-        %     \If{$entry.succrq \neq NULL$}{
-        %         $\textit{SubmitCRResp}(\textit{entry.succrq}, \textit{False}, NULL)$ to $L_{succrq} \in \mathcal{L}$\\
-        %     }
-        % }
-    
-    }
-    \caption{MD-Lin Shard Leader Coordination}
-    \label{shardprotocolcoord}
-\end{algorithm}
-\wl{The algorithms need to wrap words in textit to get proper kerning, e.g., $buffered$ vs $\textit{buffered}$}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%% Failover %%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% getSuccessor(e)
-% If e is in committed but not ordered
-% BLOCK until I get my successor, then send back my_successor_ts -1
-% Else if e in ordered 
-% Return e.ts
-% Else
-% Return inf
-
-\begin{algorithm}[!tb]
-    \State $\textit{S}$ \algorithmiccomment{Set of all shards in cluster}\\
-    \State $\textit{R}$ \algorithmiccomment{Set of all replicas in shard}\\
-    % \State $n$ \algorithmiccomment{Number of replicas in shard}\\
-    \textbf{parameter} $E$ \algorithmiccomment{Committed but not ordered ops}\\
-    \Function{\Recover(\textit{E})}{
-        \For{$\mathrm{each}$ $r \in R$}{ 
-                \Wait receive $E_r$\\
-                $E \gets E\cup E_r$\\
-        }
-        \For{$\mathrm{each}$ $ e \in E$}{
-            $e.\mathrm{ts\_chain} \gets NULL$\\
-            $e.\mathrm{exec} \gets True$\\
-        }
-        \State $A, B, noExec \gets FilterSets(E)$\\
-        $A\sorting(\text{by} \enspace ts\_chain[-1])$\\
-        $q \gets \constructQueue(A)$\\
-        $last \gets q\qpeak()$\\
-        $\mathrm{shard\_ts} \gets last.\mathrm{ts\_chain}[-1] + 1$\\
-        % $D \gets \constructMap()$\\
-        % \For{$e \in B$}{
-        %     \If{$e.\mathrm{PID} \notin D$}{
-        %         $D[e.\mathrm{PID}] \gets []$\\
-        %     }
-        %     $D[e.\mathrm{PID}]\append(e)$\\
-        % }
-        % \For{$client \in D$}{
-        %     $client\sorting(\text{by} \enspace e.\mathrm{seqno})$\\
-            % \For{$e \in client$}{
-            \For{$e \in B$}{
-                $ts\_chain, pred\_ts \gets [], -1$\\
-                \label{B_begin}
-                \If{$\textit{e.pred} \neq \textit{NULL}$}{
-                    \Send $\textit{SubmitCR}(\textit{e.pred}, \textit{e})$ to $L_{e.pred} \in \mathcal{L}$\\
-                    \Wait receive $\textit{SubmitCRRespRecv}(e, exec, ts\_chain)$ from $S_e.\mathrm{pred}$\\
-                    \If{$exec = False$}{
-                        $e.\mathrm{ts\_chain \gets NULL}$\\
-                        $noExec\adds(e)$\\
-                        \Continue
-                    }
-                    $e.\mathrm{ts\_chain \gets ts\_chain}$\\
-                    $pred\_ts \mathrm{\gets ts\_chain[-1]}$\\
-                }
-                $my\_ts \gets \mathrm{max}(pred\_ts+1, \mathrm{shard\_ts})$\\
-                $\mathrm{shard\_ts} \gets my\_ts + 1$\\
-                $e.\mathrm{ts\_chain}\append(my\_ts)$\\
-                \label{B_end}
-                $q\qpush(e)$\\
-            }
-        % }
-        $q\qpush(noExec)$\\
-        \Send $\textit{FinalAccept}(\textit{q})$ to all $r \in \mathcal{R}$\\
-        \algorithmiccomment{New leader begins taking new client requests}\\
-    }
-    \caption{MD-Lin Failover}
-    \label{failover}
-\end{algorithm}
-
-
-\begin{algorithm}[!tb]
-    \State $\textit{S}$ \algorithmiccomment{Set of all shards in cluster}\\
-    \State $\textit{R}$ \algorithmiccomment{Set of all replicas in shard}\\
-    % \State $n$ \algorithmiccomment{Number of replicas in shard}\\
-    \textbf{parameter} $E$ \algorithmiccomment{Committed but not ordered ops}\\
-    \Function{\getChain(E)}{
-        $V \gets$ constructEmptySet($|E|$) \\
-        \For{$e_i \in E$}{
-            \If{$\exists \enspace \textit{o} \notin \mathrm{orderedLog} \enspace \land \enspace o.\mathrm{committed} \enspace \land \enspace o.\mathrm{pred} = e$}{
-                \Send $\textit{getTimestampChain}(o)$ to all $S$~\\
-                \Wait receive $\textit{getTimestampChainReply}(ts\_chain, execute)$ from $S$ \\
-                \label{mytsminus1}
-                \If{$execute$}{
-                    $ts\_chain\pop()$\\
-                    $V_i \gets (ts\_chain, True)$\\
-                }
-                \Else{
-                    $V_i \gets (NULL, False)$\\
-                }
-            }
-            \If{$\exists \enspace \textit{o} \in \mathrm{orderedLog} \enspace \land \enspace o.\mathrm{pred} = e$}{
-                $V_i \gets$ ($o.\mathrm{ts\_chain}, o.\mathrm{execute}$)
-            }
-            \Else{
-                $V_i \gets$ ($NULL, True$)
-            }
-        }
-        \Return $V$
-    }
-
-    \Function{FilterSets(E)}{
-        \State $A, B, noExec \gets \{\}$\\
-        \For{$\mathrm{each}$ $s \in S$}{
-            \Send $\textit{getSuccessor}(E)$ to $s$\\
-            \Wait receive $\textit{getSuccessorReply}(TS, exec)$ from $s$\\
-            \For{$\mathrm{each}$ $ts\_chain_i, exec_i \in TS, exec$}{
-                \If{$ts\_chain_i \neq NULL$}{
-                    $ts\_chain_i\pop()$\\
-                    $e_i.ts\_chain = ts\_chain_i$\\
-                }
-                \If{$exec_i \neq True$}{
-                    $e_i.exec = False$\\
-                }
-            }
-        }
-        \For{$\mathrm{each}$ $e \in E$}{
-            \If{$e.\mathrm{exec} = False$}{
-                $noExec\adds(e)$\\
-                \Continue
-            }
-            \If{$e.\mathrm{ts\_chain} = NULL$}{
-                $B\adds(e)$\\
-            }
-            \Else{
-                $A\adds(e)$\\
-            }
-        }
-        \Return $A, B, noExec$
-    }
-    % \Function{\getPredecessor(\textit{req})}{
-        
-    %     \Wait until $e.\mathrm{coordinated} \enspace \lor \enspace \textit{e} \in \mathrm{orderedLog}$\\
-    %     \Return $e.\mathrm{ts\_chain}$
-    % }
-    % \Function{\getSuccessor(\textit{E})}{
-    %     $V \gets$ constructEmptySet($|E|$) \\
-    %     \For{$e_i \in E$}{
-    %         \If{$\exists \enspace \textit{o} \notin \mathrm{orderedLog} \enspace \land \enspace o.\mathrm{committed} \enspace \land \enspace o.\mathrm{pred} = e$}{
-    %             \Send $\textit{getSuccessor}(o)$ to all $S$~\\
-    %             \Wait receive $\textit{getSuccessorReply}(ts)$ from $S$ \\
-    %             \label{mytsminus1}
-    %             $V_i \gets ts-1$
-    %         }
-    %         \If{$\exists \enspace \textit{o} \in \mathrm{orderedLog} \enspace \land \enspace o.\mathrm{pred} = e$}{
-    %             $V_i \gets$ $o.\mathrm{ts}$
-    %         }
-    %         \Else{
-    %             $V_i \gets$ $\infty$
-    %         }
-    %     }
-    %     \Return $V$
-    % }
-    \caption{MD-Lin Failover Helper Functions}
-    \label{failover_helpers}
-\end{algorithm}
-
-
-
 
 \paragraph{Timestamp Chains.}
 % To ensure a compatible ordering with other shards, the new leader issues coordination requests to the predecessors of all operations in the committed-but-not-ordered set.
 % These requests serve their aforementioned purpose and also return a predecessor timestamp, $ts_{pred}$, in the coordination reply. 
 
 % Once an operation is marked coordinated, in addition to ordering it in the log and replicating this order at a majority, the shard leader also assigns it a timestamp, ts, where $ts = \max(ts_{pred} + 1, ts_{leader})$ and $ts_{leader}$ is the leader's global timestamp. The shard leader also updates its global timestamp as $ts_{leader} = \max(ts_{leader}, ts_{op}) + 1$ after every operation that is marked coordinated and placed at an index in the log. An operation's timestamp is also replicated with the operation in the final ordering round to replicas.
-Timestamp chains are passed around through the coordination replies and are used to order committed-but-not-ordered operations during failover recovery. A coordination reply to an operation $o_{n+1}$ with $n$ predecessors contains a timestamp chain of length $n$ which reflects the timestamps assigned to all predecessors of $o_{n+1}$. The "timestamp" of an operation is assigned when it becomes committed and coordinated, and is appended to its timestamp chain, always making it the last entry of the chain. The details of timestamp assignment can be found in algorithms ~\ref{shardprotocolmessages} and ~\ref{shardprotocolcoord}.
+Timestamp chains are passed around through the coordination replies and are used to order committed-but-not-ordered operations during failover recovery. A coordination reply to an operation $o_{n+1}$ with $n$ predecessors contains a timestamp chain of length $n$ which reflects the timestamps assigned to all predecessors of $o_{n+1}$. The "timestamp" of an operation is assigned when it becomes committed and coordinated, and is appended to its timestamp chain, always making it the last entry of the chain. The details of timestamp assignment can be found in Algorithms~\ref{shardprotocolmessages} and~\ref{shardprotocolcoord} in \cref{sec:pseudo}.
 
 To ensure a compatible ordering with other shards, the new leader issues requests to the successors of all operations in the committed-but-not-ordered set asking for timestamp chains that might have been sent in coordination responses prior to failover. Since operations are not aware of their successors (only their predecessors), the new leader must contact all shards in the cluster to find the successors for each committed-but-not-ordered operation. While expensive, a new leader must establish new network connections with all shards in the cluster for post-failure operation, thus it can send requests for successor timestamp chains at the same time.
 
@@ -1118,3 +736,5 @@ is guaranteed to have a larger timestamp than $o_1$ by reasoning similar to that
 % \end{algorithm}
 
 
+\subsection{Correctness}
+This section argued informally about the correctness of \sys{}. \Cref{sec:correctness} provides a proof of correctness.

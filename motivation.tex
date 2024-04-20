@@ -1,4 +1,7 @@
+
+
 \section{Background \& Motivation}
+
 This section provides the necessary background on distributed applications, consistency models, Linearizability, and why its single-dispatch requirement slows applications.
 It then explains why naive parellelization of operations to a Linearizable system is error-prone and fragile.
 
@@ -6,7 +9,7 @@ It then explains why naive parellelization of operations to a Linearizable syste
 We consider here the common model of an application that stores its shared state in a separate backend system.
 Users interact with the application by sending \textit{requests}, e.g., a HTTP request, to one of many concurrent \textit{application processes} that implement the application logic. Application processes are stateless and process requests on behalf of many users. Application processes send \textit{operations} to a backend \textit{system} that provides the concurrent application processes with access to shared, persistent state.
 
-An application's processing of a user's request will result in some number of operations to the backend system, which we refer to as the request's \textit{fanout}. Our goal is to minimize the \textit{end-to-end latency} of an application processing a user's request. For instance, a user request that result in 100 operations has a fanout of 100 and we are trying to minimize the latency of the totality of these operations.
+An application's processing of a user's request will result in some number of operations to the backend system, which we refer to as the request's \textit{fanout}. Our goal is to minimize the \textit{end-to-end latency} of an application processing a user's request. For instance, a user request that results in 100 operations has a fanout of 100 and we are trying to minimize the latency of the totality of these operations.
 
 A system's \textit{consistency model} provides guarantees about the observable return values for a set of operations.
 Programmers rely on a system's consistency model while building their applications. By defining the system's set of allowed behaviors, a consistency model permits programmers to ignore the system's implementation and instead focus on ensuring their applications are correct given these behaviors.
@@ -170,9 +173,16 @@ Worse yet, the correctness of an application needs to be reestablished whenever 
 
 Finally, \cref{subfig:suffix_closed_breaks} shows an example where naive parallelization results in new behavior despite the requests of $p_{12}$ and $p_{13}$ not being concurrent. Here it is possible for naive parallelization to return $n=1$, $m=0$ if w($m=1$) failed. This is not possible under Linearizability because if w($m=1$) failed then w($n=1$) would never have been dispatched.
 
+As a more concrete example of where \mdl{} is necessary for safe parallelization we show and discuss the Retwis post function in 
+\cref{fig:retwis-post} in \cref{sec:retwis-post}.
+
 Thus, naive parallelization reduces latency but violates the purpose of a strong consistency model by forcing programmers to continuously reason about complex interactions between their code, the system, and failures. We next propose \mdl{} to avoid this unnecessary tradeoff.
 
+
+
 \wl{why is it parallelization here instead of multidispatch? Should probably be just multi-dispatch}
+
+%\subsection{Case study: Retwis}
 
 % Consequently, it 
 % enables applications to achieve lower end-to-end latency. Provided 

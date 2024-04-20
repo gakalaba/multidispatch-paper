@@ -55,7 +55,9 @@ This evaluation aims to answer the following questions:
 \begin{enumerate}[leftmargin=*]
     \item How does the end-to-end application latency for \sys{} compare to Multi-Paxos in a datacenter setting?
     \item How does it compare in a wide-area setting?
-    % \item How does the throughput of \sys{} compare to Multi-Paxos, and how is that affected by batching?
+    \item How does it compare for the Retwis?
+    \item How does the throughput of \sys{} compare to Multi-Paxos?
+    %, and how is that affected by batching?
     % \item How sensitive is the performance to skewed workloads?
     % \item \todo{Don't work on this yet, we'll almost certainly have to cut it for space.} What is the effect of the first-operation optimization on latency and throughput in a single-shard setting?
 \end{enumerate}
@@ -68,10 +70,9 @@ This evaluation aims to answer the following questions:
 All experiments ran on Cloudlab's Utah platform, using
 m510 machines~\cite{duplyakin2019cloudlab}.  Each machine has 1 Intel Xeon-D processor with 8 physical cores
 running at 2 GHz (hyper-threading enabled), 64 GB of DDR4-2133 RAM, and a 10
-Gb/s NIC\@.  Our setup consists of a 9-node server cluster and 8 additional client machines.
-The round-trip latency between all machines is 150--200 $\mu$s.  Each shard has three replicas,
-on different physical machines. For multi-sharded experiments we place
-shard leaders on separate physical machines. Clients are distributed
+Gb/s NIC\@.  Our setup consists of a 9-node server cluster and 10 additional client machines.
+The round-trip latency between all machines is 100--200 $\mu$s.  Each shard has three replicas,
+on different physical machines. For multi-sharded single datacenter experiments, we place 9 shards across 3 separate physical machines, ie per machine there are 3 separate shard leader processes, 3 separate replica 1 processes, and 3 separate replica 2 processes. For multi-sharded WAN experiments we place shard leaders on separate physical machines and all replicas are also placed on their own machine, ie per machine there is 1 process. Clients are distributed
 evenly across the client machines.
 
 \wl{@anja delete this after reading: the use of texttt I find to be distracting. and when it's printed out by some readers (like me at home) it looks terrible interspersed with regular text so I'm eliminating it.}
@@ -89,7 +90,7 @@ evenly across the client machines.
 
 %\subsection{Client Design}
 Clients submit application-level requests. Each application-level request
-submits $n$ (the fanout parameter for an experiment) system-level operations.
+submits $n$ (the fanout parameter for an experiment) system-level operations. We inject a random delay within a range of 100\,ms before each client issues an application-level request.
 
 Single-dispatch clients interacting with \mpaxos{} have one in-flight operation at
 a time. Multi-dispatch clients interacting with \system{} send $n$ system-level
@@ -97,7 +98,7 @@ operations concurrently, in order, waiting until all operations complete before
 issuing the next batch. Both are closed-loop clients that submit a single
 application-level request at a time.
 In each experiment, we scale the number of clients issuing requests to both
-systems to explore points of low load up through saturation.
+systems to explore points of low load up through saturation. Our figures report values under low load, around 30\% throughput.
 %, including from 2 to 8192 clients.by.
 
 % \al{idk... is it worth noting? If so, not here}
@@ -120,11 +121,27 @@ systems to explore points of low load up through saturation.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%% 1 shard uniform p99 %%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% \begin{figure}[!htbp]
+% \centering
+% \begin{subfigure}[b]{0.9\columnwidth}
+% \includegraphics[width=\linewidth]{figs/multicore/interspersed_latencies_multicore.png}
+% \caption{First}
+% \label{subfig:absoluteMC}
+% \end{subfigure}\qquad
+% \begin{subfigure}[b]{0.9\columnwidth}
+%   \includegraphics[width=\linewidth]{figs/multicore/relative_latencies_multicore.png}
+%   \caption{Second}
+%   \label{subfig:relateiveMC}
+% \end{subfigure}
+% \caption{Absolute and normalized p50 latency in a single datacenter setting with 9 shards distributed evenly across a single replication group with 3 replicas. Fanouts of 1--32. Latency for each setting is normalized to the \mpaxos{} latency.}
+% \label{fig:DC}
+% \end{figure}
+
 \begin{figure}[tbp]
 \centering
-  \includegraphics[width=\linewidth]{figs/singleDC.png}
-  \vspace{3pt}
-\caption{Normalized p50 latency in a single datacenter setting with 1, 3, and 9 shards for fanouts of 1--32. Latency for each setting is normalized to the \mpaxos{} latency.}
+  \includegraphics[width=.9\linewidth]{figs/multicore/relative_latencies_multicore.png}
+\caption{Normalized p50 latency in a single datacenter setting with 9 shards distributed evenly across 3 replicas. Latency for each setting is normalized to the \mpaxos{} latency.}
 %p99 latency for a single datacenter setting. We show results for a sweep of fanouts on 1 shard, 3 shards, and 9 shard clusters.}
 \label{fig:DC}
 \end{figure}
@@ -133,11 +150,11 @@ systems to explore points of low load up through saturation.
 
 Figure~\ref{fig:DC} compares the median
 end-to-end application request latency for \system{} and \mpaxos{}
-configured in a single datacenter with a uniform key distribution and fanouts from $1$ to $32$. We show latencies for single- and multi-shard settings.
+configured in a single datacenter with a uniform key distribution and fanouts from $1$ to $128$. We show latencies a 9-shard setting.
 
-At a fanout of 1, the latency of application-level requests is roughly the same between \system{} and \mpaxos{}, since the first request in a set of concurrent requests issued to \system{} only requires a single round. We expect to see significant latency improvements as the fanout increases, approaching an upper bound of 1/4 as discussed in \Cref{sec:design}.
+Recall from \Cref{sec:design} that the latency for \system{} should scale with the fanout as $6T + (N-1)*T$. At a fanout of 1, the latency of application-level requests is roughly the same between \system{} and \mpaxos{}, since the first request in a set of concurrent requests issued to \system{} only requires a single round. Similarly, at a fanout of 2, the latencies are also similar due to the 2-round nature of the protocol for fanouts higher than 1. We expect to see significant latency improvements as the fanout increases past 4, approaching an upper bound of 1/4 as discussed in \Cref{sec:design}.
 
-In the single shard setting, we do not reach the upper bound due to inefficiencies in our implementation, which is not optimized for the single shard case.
+% In the single shard setting, we do not reach the upper bound due to inefficiencies in our implementation, which is not optimized for the single shard case.
 % In a single shard setting, the upper bound cannot be reached due to several reasons. In particular, when the leader is under high load at higher
 % fanouts, it must process a large log of buffered
 % requests and each of their coordination messages. The protocol evaluated is not optimized for a single shard, so coordination messages are still issued even though the recipient and sender is the same. Lower latency is attenuated by the processing of coordination overhead
@@ -145,8 +162,8 @@ In the single shard setting, we do not reach the upper bound due to inefficienci
 % greater for p90 and p50, where the tail variability of subrequest latency is less pronounced.
 %
 %Somewhat counter-intuitively, three shards outperforms nine. 
-As the number of shards increases, however, we notice latency approaches the lower bound improvement
-described in \cref{sec:design} for fanouts $8$, $16$, and $32$, with latency
+At 9 shards, we notice latency approaches the lower bound improvement
+described in \cref{sec:design} for fanouts $16$ - $128$, with latency
 close to 25\% of \mpaxos{}. p90 and p99 latency also approaches 1/4 of \mpaxos{} (not shown).
 % An application-level request of fanout $n$ induces
 % $n-1$ 1-way inter-shard coordination messages that must be serialized with
@@ -154,7 +171,7 @@ close to 25\% of \mpaxos{}. p90 and p99 latency also approaches 1/4 of \mpaxos{}
 % of large number of requests across multiple shards helps speed the processing
 % time at each leader.
 %
-Overall, \sys{} provides the same latency as \mpaxos{} when there is no potential for parallelization and lower latency when there is potential parallelization at fanouts of 2 or more.
+Overall, \sys{} provides the same latency as \mpaxos{} when there is no potential for parallelization and lower latency when there is potential parallelization at fanouts of 4 or more.
 
 % * Compare e2e app latency in a single datacenter setting\\
 % * The latency between clients and shard leader, shard leaders and shard leaders,  and shard leaders and replicas is uniform and low\\
@@ -178,7 +195,7 @@ Overall, \sys{} provides the same latency as \mpaxos{} when there is no potentia
 
 \begin{table}[b]
 \begin{tabular}{@{}lrrr@{}}
-& \multicolumn{3}{c}{Latencies}  \\
+%& \multicolumn{3}{c}{Latencies}  \\
 & C $\leftrightarrow$ SL & SL $\leftrightarrow$ SL & SL $\leftrightarrow$ R  \\
 Edge Client  & 90\,ms  & 2\,ms & 90\,ms  \\
 %Colocated Shards/Clients & 2\,ms  & 2\,ms & 90\,ms  \\
@@ -244,8 +261,7 @@ As seen in \cref{fig:wan}, single-dispatch suffers from having to sequentially p
 % \end{figure*}
 \begin{figure}[tbp]
 \centering
-  \includegraphics[width=\columnwidth]{figs/wide_area_latencies.png}
-  \vspace{1pt}
+  \includegraphics[width=.9\columnwidth]{figs/wan/wide_area_latencies.png}
 \caption{Normalized p50 latency in the two wide-area settings with three shards for fanouts of 1--32. Latency for each setting is normalized to the \mpaxos{} latency.}
 \label{fig:wan}
 \end{figure}
@@ -326,17 +342,76 @@ In this configuration, we inspect the end-to-end performance of clients located 
 % \label{fig:batching}
 % \end{figure*}
 
-\subsection{Skew}
-Due to space limitations we omit an experimental comparison of \sys{} and \mpaxos{} for varying values of skew. At a high-level we saw that the improvements of \sys{} over \mpaxos{} are robust to varying skew values until we reached a Zipfian value of above 1.1 where overload at a single shard as a result of the extreme skew degrades the improvement.
+\subsection{Retwis}
+Retwis is a micro-blogging application~\cite{retwis} for Redis~\cite{redis}, a linearizable key-value store. Retwis has various application-level requests that issue reads and writes to Redis, including user authentication and registration, following and unfollowing, posting messages, and viewing user-specific timelines. We ported Retwis to \mpaxos{} and transform each function, as per Section~\ref{sec:mdl:transform}, to run with \sys{}. We evaluate the impact of \mdl{} on such an application with a synthetic workload (maximum fanout given in ()):
+1\% register user (5),
+2\% login (3),
+2\% logout (3),
+10\% post (\# followers),
+15\% show profile (2$\times$\# posts),
+20\% follow/unfollow (2), and
+50\% show timeline (2$\times$\# posts).
+%detailed in Table ~\ref{table:retwis}.
+
+Figure~\ref{fig:retwis} shows the median latency for a synthetic workload based on the Retwis application within a single datacenter, using the same 9 shard configuration as shown previously. \sys{} has approximately $1/3$ the latency of \mpaxos{} for the full mixed workload. Some of Retwis's application-level requests are able to take advantage of \Mdl{} better than others. Showing a user's timeline, in particular, approaches \Mdl{}'s theoretical maximum performance. It has a large fanout, as most datastore operations, including getting posts for each user, do not depend on each other. In contrast, functionality such as logging in and out does not provide large improvements, as its sub-operations are mostly data-dependent on each other.
+
+% \begin{table}[h]
+% \centering
+% \scalebox{0.9}{
+%     \begin{tabular}{|c c c|}
+%      \hline
+%      Application Request Type & \# maximum fanout & workload \% \\ [0.4ex] 
+%      \hline
+%       Login & 3 & 2\% \\
+%       Logout & 3 & 2\% \\
+%       Register User & 5 & 1\% \\
+%       Post &  $\textit{\# followers}$ & 10\% \\
+%       Follow/Unfollow & 2 & 20\% \\
+%       Show Timeline  &  $2 \times \textit{\# posts}$  & 50\% \\
+%      Show Profile & $2 \times \textit{\# posts}$ & 15\% \\ [1ex] 
+%      \hline
+%     \end{tabular}
+% }
+% \caption{Application Request profile for Retwis workload.}
+% \label{table:retwis}
+% \end{table}
+
+\begin{figure}[tbp]
+\centering
+  \includegraphics[width=.9\linewidth]{figs/retwis/relative_latencies_retwis.png}
+\caption{Retwis p50 latency in a single datacenter  with 9 shards distributed evenly across 3 replicas, normalized to \mpaxos{}.}
+%p99 latency for a single datacenter setting. We show results for a sweep of fanouts on 1 shard, 3 shards, and 9 shard clusters.}
+\label{fig:retwis}
+\end{figure}
+
+% \begin{figure}[!htbp]
+% \centering
+% \begin{subfigure}[b]{0.9\columnwidth}
+% \includegraphics[width=\linewidth]{figs/retwis/interspersed_latencies_retwis.png}
+% \caption{First}
+% \label{subfig:absolute}
+% \end{subfigure}\qquad
+% \begin{subfigure}[b]{0.9\columnwidth}
+%   \includegraphics[width=\linewidth]{figs/retwis/relative_latencies_retwis.png}
+%   \caption{Second}
+%   \label{subfig:relateive}
+% \end{subfigure}
+% \caption{Retwis P50 Latencies in a single datacenter with 9 shards. ~\ref{subfig:absolute} shows the absolute latencies for each of the Retwis functions, while ~\ref{subfig:relateive} shows the latency normalized to \mpaxos{}.}
+% \label{fig:retwis}
+% \end{figure}
+
+% \subsection{Skew}
+% Due to space limitations we omit an experimental comparison of \sys{} and \mpaxos{} for varying values of skew. At a high-level we saw that the improvements of \sys{} over \mpaxos{} are robust to varying skew values until we reached a Zipfian value of above 1.1 where overload at a single shard as a result of the extreme skew degrades the improvement.
 
 
 \subsection{Throughput}
-\subsubsection{Single Datacenter}
-\subsubsection{Wide-Area}
+\label{subsec:eval-tput}
+ \cref{fig:tput} in \cref{sec:tput} shows the throughput for fanout 16 using 10 client machines issuing requests to the 9 shard cluster across 3 physical machines. 
 
-\subsection{Batching}
-\subsubsection{Single Datacenter}
 
+\sys{} has about half the max throughput of \mpaxos{}. This is due to the two-round nature of the protocol and the processing of coordination requests at the leader. We also ran experiments with power of 2 fanouts from 1--128 (not shown). Max throughput is nearly identical for fanout 1, similar for fanout 2, and then progressively moves towards 50\% as we get closer to the shown fanout 16 graph. Larger fanouts are similar to fanout 16, with 50\% max throughput.
+
+This is the primary tradeoff of \sys{}: it provides much lower latency than \mpaxos{} but its lower throughput per machine requires more machines to support a given throughput.
 
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -5,7 +5,7 @@
 
 \todo{Change to 'do existing systems provide \mdl{}. Say we have a new consistency model. Do existing provide it? Surprisingly it appears single-shard implementations do not, though there is a design for it on a single shard. Then structure single-shard \mdl{} and multi-shard \mdl{}.}
 
-There are several existing systems that could be used to implement
+There are several existing systems that could be used to provide
 \multidispatch{} linearizability on a single shard. In this section,
 we briefly describe them and then show how they fail to extend to
 multiple shards.
@@ -39,8 +39,8 @@ guarantee \MDL{} by issuing a \texttt{sync} operation before each read to preven
 
 %\subsection{Why is this hard?}
 But these protocols fail to 
-guarantee \MDL{} across multiple shards for two reasons: First,
-As mentioned, multiple shards
+guarantee \MDL{} across multiple shards for two reasons. First,
+as mentioned, multiple shards
 introduces the possibility for independent failures of operations. A first
 operation at one shard may fail and need to be retried (e.g., due to
 leader failure) while a second operation at another shard succeeds, and
