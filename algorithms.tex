@@ -176,11 +176,11 @@ The pseudocode for clients is shown in \cref{clientprotocol}. The pseudocode for
     \algorithmiccomment{CR sent by client of req to shard carrying req's predecessor}\\
         $pred.\mathrm{succrq} := \textit{req}$\\
         \If{$\textit{entry} := \textit{orderedLog}\find(\textit{pred}) \neq \textit{NULL}$}{
-            $\textit{SubmitCRResp}(\textit{req}, entry.\mathrm{execute}, entry.ts\_chain})$ to $L_{req} \in \mathcal{L}$\\
+            $\textit{SubmitCRResp}(\textit{req}, entry.\mathrm{execute}, entry.\mathrm{ts\_chain})$ to $L_{req} \in \mathcal{L}$\\
             \Return\\
         }
         \Wait $\textit{entry} := \textit{bufferedMap}\find(\textit{pred}) \neq \textit{NULL}$\\
-        \Wait $(\textit{entry.committed} \land \textit{entry.coordinated}) \lor (\textit{bufferedMap}\find(\textit{pred}) = \textit{NULL})$\\
+        \Wait $(entry.\mathrm{committed} \land entry.\mathrm{coordinated}) \lor (\textit{bufferedMap}\find(\textit{pred}) = \textit{NULL})$\\
          $\textit{SubmitCRResp}(\textit{req}, entry.execute, \textit{entry.ts\_chain})$ to $L_{req} \in \mathcal{L}$\\
         % \If{$\textit{entry.committed} \land \textit{entry.coordinated}$}{
         %     $\textit{SubmitCRResp}(\textit{req}, \textit{True}, \textit{entry.ts\_chain})$ to $L_{req} \in \mathcal{L}$\\
