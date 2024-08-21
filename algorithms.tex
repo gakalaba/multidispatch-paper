@@ -181,7 +181,7 @@ The pseudocode for clients is shown in \cref{clientprotocol}. The pseudocode for
         }
         \Wait $\textit{entry} := \textit{bufferedMap}\find(\textit{pred}) \neq \textit{NULL}$\\
         \Wait $(entry.\mathrm{committed} \land entry.\mathrm{coordinated}) \lor (\textit{bufferedMap}\find(\textit{pred}) = \textit{NULL})$\\
-         $\textit{SubmitCRResp}(\textit{req}, entry.execute, \textit{entry.ts\_chain})$ to $L_{req} \in \mathcal{L}$\\
+         $\textit{SubmitCRResp}(\textit{req}, entry.\mathrm{execute}, entry.\mathrm{ts\_chain})$ to $L_{req} \in \mathcal{L}$\\
         % \If{$\textit{entry.committed} \land \textit{entry.coordinated}$}{
         %     $\textit{SubmitCRResp}(\textit{req}, \textit{True}, \textit{entry.ts\_chain})$ to $L_{req} \in \mathcal{L}$\\
         % }
@@ -191,27 +191,27 @@ The pseudocode for clients is shown in \cref{clientprotocol}. The pseudocode for
     }
     \Function{\CRReply(\textit{req}, \textit{v} \textit{timestamp\_chain})}{
         \Wait $entry := bufferedMap\find{req} \neq NULL$\\
-        $\textit{entry.execute} \gets \textit{v}$\\
-        $entry.ts\_chain = timestamp\_chain$\\
-        $\textit{entry.coordinated} \gets \textit{True}$\\
-        \If{$\textit{entry.committed} \land \textit{entry.coordinated}$}{
-            \If{$v \neq True \land entry.succrq \neq NULL$}{
-                $\textit{SubmitCRResp}(\textit{entry.succrq}, False, NULL)$ to $L_{succrq} \in \mathcal{L}$\\
+        $entry.\mathrm{execute} \gets \textit{v}$\\
+        $entry.\mathrm{ts\_chain} = timestamp\_chain$\\
+        $entry.\mathrm{coordinated} \gets \textit{True}$\\
+        \If{$entry.\mathrm{committed} \land entry.\mathrm{coordinated}$}{
+            \If{$v \neq True \land entry.\mathrm{succrq} \neq NULL$}{
+                $\textit{SubmitCRResp}(entry.\mathrm{succrq}, False, NULL)$ to $L_{succrq} \in \mathcal{L}$\\
                 \Return
             }
             % \If{$timestamp\_chain \neq NULL$}{
                 \label{ts_assignment_pt1}
                 $pred\_ts = timestamp\_chain[-1]$\\
                 $\textit{my\_ts} = \max(\textit{pred\_ts}+1, \textit{ShardTS})$\\
-                $entry.ts\_chain\append(my\_ts)$\\
+                $entry.\mathrm{ts\_chain}\append(my\_ts)$\\
                 \label{ts_assignment_pt2}
                 $\textit{ShardTS} = \textit{my\_ts}+1$\\
             % }
             % \Else{
             %     $entry.ts\_chain = NULL$\\
             % }
-            \If{$entry.succrq \neq NULL$}{
-                $\textit{SubmitCRResp}(\textit{entry.succrq}, True, \textit{entry.ts\_chain})$ to $L_{succrq} \in \mathcal{L}$\\
+            \If{$entry.\mathrm{succrq} \neq NULL$}{
+                $\textit{SubmitCRResp}(entry.\mathrm{succrq}, True, entry.\mathrm{ts\_chain})$ to $L_{succrq} \in \mathcal{L}$\\
             }
             $\textit{bufferedMap}\pop(\textit{entry})$\\
             $\textit{orderedLog}\append(\textit{entry})$\\

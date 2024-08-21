@@ -4,10 +4,10 @@
 \wl{Should discuss this paper: https://www.dpss.inesc-id.pt/~rodrigo/antipode-sosp2023.pdf}
 
 \paragraph{Consistency Models.}
-The core difference between Linearizability and \mdl{} is that \mdl{} allows multi-dispatch and enforces issue-ordering for operations from the same application process.
+The core difference between Linearizability and \mdl{} is that \mdl{} enforces issue-ordering for operations from the same application process, even concurrent ones.
 Using issue ordering as the constraint is intuitive and thus conceptually matches earlier work.
 Session guarantees~\cite{terry1994session} introduces four guarantees for operations within a given session: read-your-writes, monotonic reads, writes-follow-reads, and monotonic writes. When a session corresponds to an application process handling a user request the combination of these four guarantees ensures issue ordering.
-Similarly, A-Linearizability~\cite{hunt2010zookeeper} requires an issue-order for multi-dispatched writes.
+Similarly, A-Linearizability~\cite{hunt2010zookeeper} requires an issue-order for multi-dispatched writes. 
 
 This earlier work, however, does not provide `strong' consistency comparable to Linearizability.
 Session guarantees do not ensure any real-time order, e.g., a write that finished yesterday might not been seen by a read issued today.
@@ -65,6 +65,8 @@ linearizable systems in the wide
 area~\cite{mao2008mencius,moraru2013epaxos,burke2020gryff} and that can sometimes avoid the latency penalty from a far-away leader.
 As a leader-based protocol \sys{} must pay the penalty for far-away leaders.
 An interesting avenue for future work is removing this penalty by adding \mdl{} to some of these designs.
+
+Other systems ~\cite{salus} provide \mdl{}, but with severe restrictions on the concurrency of clients and their programming behavior, while \system{} does not.
 
 \paragraph{Transactional Systems.}
 Transactional consistency models, like strict serializability,

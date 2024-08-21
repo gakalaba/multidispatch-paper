@@ -1,0 +1,55 @@
+\section{Users, Applications, \&Executions}
+\label{sec:mdl:applications}
+
+We leverage the formalism used in RSS~\cite{helt2021rss}. We model a
+distributed \textit{application} as a set of $n$ \textit{processes}.
+Processes are state machines~\cite{lynch1987ioa,lynch1996da}
+that implement application logic by receiving messages from and sending replies
+to \textit{users}, performing local computation,
+and invoking operations on \textit{systems}.
+\wl{Is this somewhat redundant with our definitions in section 2 now?}
+
+An application's processes define a prefix-closed set of \textit{executions},
+which are sequences $s_0,\pi_1,s_1,\ldots$ of alternating \textit{states} and
+\textit{actions}, starting and ending with a state. An application's state
+is an $n$-length vector containing the state of each process.
+%
+Each action is a step taken by exactly one process and is one of three types:
+\textit{internal}, \textit{input}, or \textit{output}. Internal actions model
+local computation. Processes use input and output actions to interact with
+users (e.g., responding to an HTTP request) and other
+processes (e.g., receiving a remote procedure call).
+As we describe in the next section, a subset of the input and output actions
+are \textit{system-facing} \textit{invocations} and \textit{responses}, 
+respectively.
+
+Users send messages to and receive messages from processes via unidirectional
+channels. To send a message to process $P_j$, $P_i$ uses two
+actions: first, $P_i$ uses an output action $\sendto_{ij}(m)$
+and later, an input action $\sent_{ij}$ occurs, signaling $m$'s 
+transmission. Similarly, to receive a message from $P_i$, $P_j$ first
+uses an output action $\request_{ij}$ and later, an input action
+$\receive_{ij}(m)$ occurs, signaling the receipt of $m$.
+(The formalism and proof here ignores inter-process messages for sake of brevity, but the full
+proof in Appendix A includes them.)
+%Appendix~\ref{sec:equivalence} includes them.)
+
+Such modeling allows our formalism to model scenarios both where human users interact with
+directly with the application and where one application is the client
+of another, as common in data centers~\cite{veeraraghavan2016kraken,schwarzkopf2018operating}.
+In the latter case, however, we assume users do not interact directly with the back-end system (defined below).
+
+Given an execution $\alpha$, we will often refer to an individual process's
+\textit{sub-execution}, denoted $\alpha|P_i$. $\alpha|P_i$ comprises
+only $P_i$'s actions and the $i$th component of each state in $\alpha$.
+In a slight abuse of notation, we use $\alpha|U$ to denote the sub-sequence
+of only \textit{user-facing} external actions in $\alpha$. 
+
+\paragraph{Well-formed.} A \textit{well-formed} execution
+satisfies the following: (1) Messages are sent before they are received; and
+(2) While processes may have multiple outstanding $\request_{ij}$ actions
+(at one or more channels) or invocations (at the system), they may not have
+both types outstanding simultaneously.
+We henceforth only consider well-formed
+executions.
+

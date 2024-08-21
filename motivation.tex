@@ -1,186 +1,230 @@
-
-
 \section{Background \& Motivation}
+\label{sec:motivation}
 
-This section provides the necessary background on distributed applications, consistency models, Linearizability, and why its single-dispatch requirement slows applications.
-It then explains why naive parellelization of operations to a Linearizable system is error-prone and fragile.
+
+
+
+
+
+
+
+
+
+This section provides the necessary background on distributed applications, consistency models, Linearizability, and the programming paradigm of applications that use it.
+% It then explains why naive parellelization of operations to a Linearizable system is error-prone and fragile.
+
+% \begin{figure*}[t!]
+% \begin{subfigure}[t]
+% \begin{minted}[escapeinside=||]{php}
+% PostSequential
+% |\colorbox{green}{(1) \$postid = \$r->incr("next\_post\_id");}|
+% |\colorbox{yellow}{(2) \$r->hmset("post:\$postid","user\_id",\$User['id'],"body",\$status);}|
+% |\colorbox{green}{(3) \$followers = \$r->zrange("followers:".\$User['id'],0,-1);}|
+% |\colorbox{yellow}{(4) foreach(\$followers as \$fid) { \$r->lpush("posts:\$fid",\$postid); }}|
+% (5) # Push the post on the timeline, and trim the timeline to the newest 1000 elements.
+% |\colorbox{yellow}{(6) \$r->lpush("timeline",\$postid);}|
+% |\colorbox{yellow}{(7) \$r->ltrim("timeline",0,1000);}|
+% \end{minted}
+% \end{subfigure}
+
+% \begin{subfigure}[t]
+% \begin{minted}
+
+% PostIOCTransformed
+% |\colorbox{green}{(1) [\$postid, \$followers] = IOCIssue([\$r->incr("next\_post\_id"), \$r->zrange("followers:".\$User['id'],0,-1)]);}|
+% (2) $ops = array();
+% (3) array_push($ops, $r>hmset("post:$postid","user_id",$User['id'],"body",$status));
+% (4) foreach($followers as $fid) { array_push($ops, $r->lpush("posts:$fid",$postid)); }
+% (5) # Push the post on the timeline, and trim the timeline to the newest 1000 elements.
+% (6) array_push($ops, $r->lpush("timeline",$postid));
+% (7) array_push($ops, $r->ltrim("timeline",0,1000));
+% |\colorbox{yellow}{(8) IOCIssue(\$ops);}|
+% \end{minted}
+% \end{subfigure}
+% \caption{The Retwis post function creates a new post and adds a reference to it in each of the timelines of a the poster's followers, as well as a global timeline. It also truncates the global timeline to the 1000 most recent posts. As written, each operation must complete before initiating the next, resulting in many round trips to the datastore. Most of these operations have no data- or control-flow dependencies on each other. However, they cannot be naively parallelized, as many of them \emph{must} occur in a particular order. For example, the post id must appear in any timelines until the post is created.}
+% \label{fig:retwis-post2}
+% \end{figure*}
+
+
+\begin{figure*}[t!]
+    \centering
+    \begin{subfigure}[b]{\textwidth}
+        \begin{minted}[escapeinside=||]{php}
+|\colorbox{green}{(1) \$postid = \$r->incr("next\_post\_id");}|
+|\colorbox{yellow}{(2) \$r->hmset("post:\$postid","user\_id",\$User['id'],"body",\$status);}|
+|\colorbox{green}{(3) \$followers = \$r->zrange("followers:".\$User['id'],0,-1);}|
+|\colorbox{yellow}{(4) foreach(\$followers as \$fid) { \$r->lpush("posts:\$fid",\$postid); }}|
+(5) # Push the post on the timeline, and trim the timeline to the newest 1000 elements.
+|\colorbox{yellow}{(6) \$r->lpush("timeline",\$postid);}|
+|\colorbox{yellow}{(7) \$r->ltrim("timeline",0,1000);}|
+\end{minted}
+        \label{fig:retwissequential}
+        \caption{PostSequential}
+    \end{subfigure}%
+    
+    \begin{subfigure}[b]{\textwidth}
+        \begin{minted}[escapeinside=||]{php}
+|\colorbox{pink}{(1) \$runtime = new \\parallel\\Runtime;}|
+(2) $future1 = $runtime->run($r->incr("next\_post\_id"));
+(3) $future2 = $runtime->run($r->zrange("followers:".\$User['id'],0,-1));
+|\colorbox{green}{(4) \$postid = \$future1->value();}|
+(5) $runtime->run($r->hmset("post:$postid","user_id",$User['id'],"body",$status));
+|\colorbox{green}{(6) \$followers = \$future2->value();}|
+(7) $runtime->run(foreach($followers as $fid) { $r->lpush("posts:$fid",$postid); })
+(8) # Push the post on the timeline, and trim the timeline to the newest 1000 elements.
+(9) $runtime->run($r->lpush("timeline",$postid));
+(10) $future3 = $runtime->run($r->ltrim("timeline",0,1000));
+|\colorbox{yellow}{(11) \$future3->value();}|
+
+\end{minted}
+        \label{fig:retwistransform}
+        \caption{PostIOCTransformed}
+    \end{subfigure}
+    \caption{The Retwis post function creates a new post and adds a reference to it in each of the timelines of a the poster's followers, as well as a global timeline. It also truncates the global timeline to the 1000 most recent posts. As written, each operation must complete before initiating the next, resulting in many round trips to the datastore. Most of these operations have no data- or control-flow dependencies on each other. However, they cannot be naively parallelized, as many of them \emph{must} occur in a particular order. For example, the post id must appear in any timelines until the post is created.}
+    \label{fig:retwis-post2}
+\end{figure*}
 
 \paragraph{Background and Terminology.}
 We consider here the common model of an application that stores its shared state in a separate backend system.
 Users interact with the application by sending \textit{requests}, e.g., a HTTP request, to one of many concurrent \textit{application processes} that implement the application logic. Application processes are stateless and process requests on behalf of many users. Application processes send \textit{operations} to a backend \textit{system} that provides the concurrent application processes with access to shared, persistent state.
 
-An application's processing of a user's request will result in some number of operations to the backend system, which we refer to as the request's \textit{fanout}. Our goal is to minimize the \textit{end-to-end latency} of an application processing a user's request. For instance, a user request that results in 100 operations has a fanout of 100 and we are trying to minimize the latency of the totality of these operations.
+An application's processing of a user's request will result in some number of operations to the backend system, which we refer to as the request's \textit{fanout}. Our goal is to minimize the \textit{end-to-end latency} of an application processing a user's request. For instance, the \texttt{PostSequential} request shown in Figure ~\ref{fig:retwis-post2} has a fanout of 5 more than the number of followers of the user posting. Our goal is to minimize the latency of the \texttt{post} function, which would overall speed up the Retwis application.
 
 A system's \textit{consistency model} provides guarantees about the observable return values for a set of operations.
 Programmers rely on a system's consistency model while building their applications. By defining the system's set of allowed behaviors, a consistency model permits programmers to ignore the system's implementation and instead focus on ensuring their applications are correct given these behaviors.
 
 \newcommand{\myp}[1]{\underline{\quad$p_{#1}$\quad}}
-\begin{figure*}
-\begin{minipage}{0.7\linewidth}
-\begin{subfigure}[t]{.1\linewidth}
-\begin{center}
-\begin{tabular}{ l }
- \myp{0} \\
- w($a$=1) \\  
- r($a$)     
-\end{tabular}
-\caption{}
-\label{subfig:one_cli}
-\end{center}
-\end{subfigure}\hfill%
-\begin{subfigure}[t]{.175\linewidth}
-\begin{center}
-\begin{tabular}{ l l }
- \myp{1} & \myp{2} \\
- w($a=1$) & r($b$) \\  
- w($b=1$) & r($a$)    
-\end{tabular}
-\caption{}
-\label{subfig:wa_wb}
-\end{center}
-\end{subfigure}\hfill%
-\begin{subfigure}[t]{.45\linewidth}
-\begin{center}
-\begin{tabular}{ l l }
- \underline{\hspace{9ex}$p_3$\hspace{9ex}} &
- \underline{\hspace{9ex}$p_4$\hspace{9ex}} \\
- test\_and\_set($c==0?1$) & test\_and\_set($c==0?2$) \\  
- test\_and\_set($d==0?1$) & test\_and\_set($d==0?2$)   
-\end{tabular}
-\caption{}
-\label{subfig:test_and_set}
-\end{center}
-\end{subfigure}\\
-\begin{subfigure}[t]{.175\linewidth}
-\begin{center}
-\begin{tabular}{ l l }
- \myp{5} & \myp{6} \\
- rmw($e+=2$) & rmw($f+=2$) \\  
- rmw($f*=2$) & rmw($e*=2$)    
-\end{tabular}
-\caption{}
-\label{subfig:rmws}
-\end{center}
-\end{subfigure}\hfill%
-\begin{subfigure}[t]{.25\linewidth}
-\begin{center}
-\begin{tabular}{ l l l }
- \myp{7} & \myp{8} & \myp{9} \\
- w($e=1$) & w($f=1$) & w($g=1$) \\  
- r($g$) & r($e$)    & \textcolor{gray}{r($f$)}
-\end{tabular}
-\caption{}
-\label{subfig:read_breaks}
-\end{center}
-\end{subfigure}\hfill%
+% \begin{figure*}
+% \begin{minipage}{0.7\linewidth}
+% \begin{subfigure}[t]{.1\linewidth}
+% \begin{center}
+% \begin{tabular}{ l }
+%  \myp{0} \\
+%  w($a$=1) \\  
+%  r($a$)     
+% \end{tabular}
+% \caption{}
+% \label{subfig:one_cli}
+% \end{center}
+% \end{subfigure}\hfill%
+% \begin{subfigure}[t]{.175\linewidth}
+% \begin{center}
+% \begin{tabular}{ l l }
+%  \myp{1} & \myp{2} \\
+%  w($a=1$) & r($b$) \\  
+%  w($b=1$) & r($a$)    
+% \end{tabular}
+% \caption{}
+% \label{subfig:wa_wb}
+% \end{center}
+% \end{subfigure}\hfill%
+% \begin{subfigure}[t]{.45\linewidth}
+% \begin{center}
+% \begin{tabular}{ l l }
+%  \underline{\hspace{9ex}$p_3$\hspace{9ex}} &
+%  \underline{\hspace{9ex}$p_4$\hspace{9ex}} \\
+%  test\_and\_set($c==0?1$) & test\_and\_set($c==0?2$) \\  
+%  test\_and\_set($d==0?1$) & test\_and\_set($d==0?2$)   
+% \end{tabular}
+% \caption{}
+% \label{subfig:test_and_set}
+% \end{center}
+% \end{subfigure}\\
+% \begin{subfigure}[t]{.175\linewidth}
+% \begin{center}
+% \begin{tabular}{ l l }
+%  \myp{5} & \myp{6} \\
+%  rmw($e+=2$) & rmw($f+=2$) \\  
+%  rmw($f*=2$) & rmw($e*=2$)    
+% \end{tabular}
+% \caption{}
+% \label{subfig:rmws}
+% \end{center}
+% \end{subfigure}\hfill%
+% \begin{subfigure}[t]{.25\linewidth}
+% \begin{center}
+% \begin{tabular}{ l l l }
+%  \myp{7} & \myp{8} & \myp{9} \\
+%  w($e=1$) & w($f=1$) & w($g=1$) \\  
+%  r($g$) & r($e$)    & \textcolor{gray}{r($f$)}
+% \end{tabular}
+% \caption{}
+% \label{subfig:read_breaks}
+% \end{center}
+% \end{subfigure}\hfill%
+% % \begin{subfigure}[t]{.2\linewidth}
+% % \begin{center}
+% % \begin{tabular}{ l l }
+% %  \myp{8} & \myp{9} \\
+% %  w(h=1) & r(h) \\  
+% %  \textcolor{gray}{if(r(i) > 2):} & r(j) \\
+% %  \quad{}w(j=1) & \\
+% %  \textcolor{gray}{else:} & \\
+% %  \quad{}\textcolor{gray}{w(j=1)}
+% % \end{tabular}
+% % \caption{}
+% % \label{subfig:optimize_breaks}
+% % \end{center}
+% % \end{subfigure}
+% % ~
 % \begin{subfigure}[t]{.2\linewidth}
 % \begin{center}
 % \begin{tabular}{ l l }
-%  \myp{8} & \myp{9} \\
-%  w(h=1) & r(h) \\  
-%  \textcolor{gray}{if(r(i) > 2):} & r(j) \\
-%  \quad{}w(j=1) & \\
-%  \textcolor{gray}{else:} & \\
-%  \quad{}\textcolor{gray}{w(j=1)}
+%  \myp{{10}} & \myp{{11}} \\
+%  w($ka=1$) & r($kb$) \\  
+%  w($kb=1$) & r($ka$)    
 % \end{tabular}
 % \caption{}
-% \label{subfig:optimize_breaks}
+% \label{subfig:resharding_breaks}
 % \end{center}
 % \end{subfigure}
-% ~
-\begin{subfigure}[t]{.2\linewidth}
-\begin{center}
-\begin{tabular}{ l l }
- \myp{{10}} & \myp{{11}} \\
- w($ka=1$) & r($kb$) \\  
- w($kb=1$) & r($ka$)    
-\end{tabular}
-\caption{}
-\label{subfig:resharding_breaks}
-\end{center}
-\end{subfigure}
-\end{minipage}
-\hfill\begin{minipage}{.175\linewidth}
-\vspace{6.5ex}
-\begin{subfigure}[t]{.175\linewidth}
-\begin{center}
-\begin{tabular}{ l l }
- \myp{{12}} & \myp{{13}} \\
- w($m=1$) & \\  
- w($n=1$) & \\
-        & r($n$)\\
-        & r($m$)\\
-\end{tabular}
-\caption{}%*{\hspace{10ex}(g)}
-\label{subfig:suffix_closed_breaks}
-\end{center}
-\end{subfigure}
-\end{minipage}
-\caption{Examples that show how naive parallelization is error prone. Each example shows operations from application processes with their issue order given by their vertical positions. The initial value for all state is 0. W, r, rmw mean write, read, and read-modify-write, respectively. In each example naive parallelization can return values that are not possible for Linearizability. (a--d) are unsafe with naive parallelization.  (e) is safe without the gray operation but unsafe with it. (f) is safe for some implementations of Linearizability but not others (see text). (g) is unsafe despite no concurrency between $p_{12}$ and $p_{13}$ because naive parallelization does not provide suffix-closed failures. All examples would need to use single-dispatch to be safe under Linearizability. All examples
-are safe with multi-dispatch under \mdl{}.}
-\label{fig:naive_breaks_stuff}
-\end{figure*}
+% \end{minipage}
+% \hfill\begin{minipage}{.175\linewidth}
+% \vspace{6.5ex}
+% \begin{subfigure}[t]{.175\linewidth}
+% \begin{center}
+% \begin{tabular}{ l l }
+%  \myp{{12}} & \myp{{13}} \\
+%  w($m=1$) & \\  
+%  w($n=1$) & \\
+%         & r($n$)\\
+%         & r($m$)\\
+% \end{tabular}
+% \caption{}%*{\hspace{10ex}(g)}
+% \label{subfig:suffix_closed_breaks}
+% \end{center}
+% \end{subfigure}
+% \end{minipage}
+% \caption{Examples that show how naive parallelization is error prone. Each example shows operations from application processes with their issue order given by their vertical positions. The initial value for all state is 0. W, r, rmw mean write, read, and read-modify-write, respectively. In each example naive parallelization can return values that are not possible for Linearizability. (a--d) are unsafe with naive parallelization.  (e) is safe without the gray operation but unsafe with it. (f) is safe for some implementations of Linearizability but not others (see text). (g) is unsafe despite no concurrency between $p_{12}$ and $p_{13}$ because naive parallelization does not provide suffix-closed failures. All examples would need to use single-dispatch to be safe under Linearizability. All examples
+% are safe with multi-dispatch under \mdl{}.}
+% \label{fig:naive_breaks_stuff}
+% \end{figure*}
 
 \paragraph{Linearizability is a Nearly Ideal Consistency Model.}
-\textit{Linearizability} is a `strong' consistency model which guarantees that return values for operations to a system are equivalent to some sequential total-order of operations that respects real-time precedence---if one operation finishes before another begins, the former is ordered before the later~\cite{herlihy1987linearizability, herlihy1990linearizability}.
-Its strong guarantees make it simple for application programmers to reason about. It reduces the behavior of a complex, highly concurrent distributed system to the equivalent of a single machine that processes operations one at time in the order they arrive over the network. 
-% (ensured by the sequential ordering) 
-% (ensured by the real-time ordering)
+\textit{Linearizability} is a `strong' consistency model which guarantees that return values for operations to a system are equivalent to some sequential total-order of operations that respects real-time precedence---all processes observe the same order of operations, and if one operation finishes before another begins, the former is ordered before the later~\cite{herlihy1987linearizability, herlihy1990linearizability}.
+Its strong guarantees make it simple for application programmers to reason about. It reduces the behavior of a complex, highly concurrent distributed system to the equivalent of a single machine that processes operations one at time in the order they arrive over the network.
 
 Linearizability is one of a handful of dominant consistency models and is the consistency model provided by many fundamental protocols---e.g., Paxos~\cite{lamport1998paxos}, RAFT~\cite{ongaro2014raft}, PBFT~\cite{castro1999pbft}---and the many foundational systems that implement them---e.g., Chubby~\cite{burrows2006chubby}, ZippyDB~\cite{zippyblog}, etcd~\cite{etcd}.
 %ABD~\cite{abd}, primary-backup~\cite{primary-backup}, etc.\@---
+% (ensured by the sequential ordering) 
+% (ensured by the real-time ordering)
 
-\paragraph{Linearizability's Single-dispatch Slows Down Applications.}
-Despite its many virtues, Linearizability imposes one major restriction on application processes, they must be \textit{single-dispatch}, i.e., they can only have one outstanding operation at a time. 
-% Thus while Linearizability permits concurrency between different processes it disallows it within a given process. 
-This restriction was quite reasonable 36 years ago when Linearizability was introduced and \true{accurately captured its target domain of sequential processes running on a multiprocessor accessing shared memory}. For modern applications that run in a distributed setting, however, this restriction has major implications for application latency.
+\paragraph{Low Latency vs. Correctness}
+As mentioned above, application-level requests can fanout into multiple system-level operations. For performance reasons, application processes will issue multiple operations at a time \textit{concurrently} rather than \textit{sequentially}, whether in multiple threads or by using asynchronous libraries for operations. For example, consider an application request with fanout 100, where each operation takes 5\,ms. A single application process which issues operations sequentially results in a latency of 500\,ms compared to the concurrent process with a latency of 5\,ms.
+Modern applications can easily have fanouts of 10, 100, or even 1000~\cite{dean2013tail}. For instance, Meta reports that processing a single Web request results in thousands of system operations~\cite{ajoux2015challenges}.
 
-\wl{This would be the place to talk about application processing becoming concurrent if we're going to do that.}
+Unfortunately, since Linearizability does not provide easy-to-reason about ordering guarantees for concurrent operations issued by 1 or more processes, concurrently issued operations can lead to incorrect or unsafe application behavior. Consider \texttt{PostSequential} in Figure ~\ref{fig:retwissequential} which shows the original, sequential, \texttt{post} function from Retwis, where each operation is issued sequentially. In an effort to reduce the latency of Post, a programmer might try to issue lines 1 and 3 (highlighted in green) concurrently and then, after those return, issue lines 2, 4, 6, 7 (yellow) concurrently. The green batch of lines must return synchronously before the yellow batch, due to the data dependencies on the \texttt{\$postid} and \texttt{\$followers} variables.
 
-Consider an application request with fanout 100, single-dispatch requires it to wait sequentially for each previous operation to finish before it dispatches the next operation. This results in much higher latency than dispatching the operations in parallel. For instance, if each operation takes 5\,ms then single-dispatch results in a latency of 500\,ms compared to the multi-dispatch latency of 5\,ms.
-Modern applications can easily have fanouts of 10, 100, or even 1000~\cite{dean2013tail}. For instance, Meta reports that processing a user's Web request results in thousands of system operations~\cite{ajoux2015challenges}.
+Concurrently dispatched operations have no ordering guarantees between them so now the programmer must reason about all the potential interleavings of all the concurrent operations to make sure they are safe. One possible interleaving for the rewritten \texttt{PostSequential} function could order a push from line 4 before the set on line 2; if a follower happens to look at their timeline after the post is referenced but before it is created, then it would see an object for the post but no post content. Similarly, if line 6 is ordered before line 4, then the creator of the post might see similar strange behavior. Worse yet, if the post creation fails, then the users could see this strange object appear and subsequently disappear in the future when some failure recovery scheme removes it from their timelines. A correct version of the rewritten function requires line 2 to take effect before the subsequently invoked lines, or, for the operations in the yellow block to take effect sequentially.
 
-\wl{What should we say about processing time? Should we mention it and say we ignore it here for ease of exposition? Or should we include it?}
+% \wl{Should we talk about the situation where single-dispatch is sufficient, i.e., fanout 1 (or 0), and places where the fanout is the same as the depth of data dependencies. The FB stat of 1000s of operations with sequential chains at most dozens deep suggests that fanout is the dominant factor here, so we should add that tidbit if we do.}
 
-\wl{Should we talk about the situation where single-dispatch is sufficient, i.e., fanout 1 (or 0), and places where the fanout is the same as the depth of data dependencies. The FB stat of 1000s of operations with sequential chains at most dozens deep suggests that fanout is the dominant factor here, so we should add that tidbit if we do.}
-
-\paragraph{Naive Parallelization is Error-Prone.}
-Programmers can get around the single-dispatch limitation of Linearizability by simply dispatching operations concurrently.
-This reduces application latency, but because it violates the assumptions of Linearizability it means the programmer can no longer rely on its guarantees. Concurrently dispatched operations have no ordering guarantees between them so now the programmer must reason about all the potential interleavings of all the concurrent operations to make sure they are safe. This violates the fundamental purpose of strong consistency models, which is to make the behavior of the system easy to reason about.
-
-
-\ak{the part that should be improved is the examples as they are very abstract and also quite unclear. it is difficult to tell what is going on and i imagine even more so for someone who isn't familiar with MDL}
-
-\Cref{fig:naive_breaks_stuff} shows several simple examples where naive parallelization results in return values that are not possible under Linearizability.
-In \cref{subfig:one_cli} naive parallelization can return $a=0$, the initial value for $a$ despite this client issuing w($a=1$) first.
-This is possible because r($a$) can be ordered by the system before w($a=1$).
-Linearizability disallows this behavior through its single-dispatch requirement (and its real-time requirement), thus the only valid return value for $a$ is 1.
-In \cref{subfig:wa_wb} naive parallelization can return $a=0$, $b=1$, which Linearizability cannot.
-In \cref{subfig:test_and_set} naive parallelization can set and return $c=1$,$d=2$ or vice versa, neither of which Linearizability permits.
-In \cref{subfig:rmws} naive parallelization can set and return $e=2$,$f=2$, which Linearizability cannot.
-Each of these new behaviors can break an application's correctness.
-For example, \cref{subfig:test_and_set} can result in a deadlock under naive parallelization if $c$ and $d$ correspond to locks.
-
-% Neither of these behaviors is possible under Linearizability and can break an application's correctness. For example, \cref{subfig:wa_wb} corresponds to the classic example of removing a person an access control list on a social network and then posting something they should not see~\cite{cooper2008pnuts, lloyd2011cops}.
-
-Programmers can analyze the application code for these new behaviors, reason about their effects on correctness, and then change the code to ensure correctness. For instance, in \cref{subfig:wa_wb} the programmer could recognize the new behavior and then make sure both $p_1$ and $p_2$ dispatch their operations sequentially.
-(In fact, all examples in \cref{fig:naive_breaks_stuff} would require using single-dispatch to be made safe.)
-This method requires expertise to determine all the potential behaviors, careful reasoning to determine what is correct, and makes the code more complex. This is possible in some cases where the time and expertise are available, but it is not a general solution.
-
-Worse yet, the correctness of an application needs to be reestablished whenever application code changes and is fragile to changes in the underlying system. \Cref{subfig:read_breaks} shows an example where the operations shown in black are safe under naive parallelization, but are not longer safe once the r($f$) shown in gray is added.
+Linearizability imposes a tradeoff for application developers to choose between performance and correctness. On the one hand, programmers can issue operations sequentially and be guaranteed correct application behavior at the cost of worse performance. On the other hand, programmers can analyze the application code for these new behaviors, reason about their effects on correctness, and then change the code to ensure correctness. 
+This method requires expertise to determine all the potential behaviors, careful reasoning to determine what is correct, and makes the code more complex. Moreover, the correctness of an application needs to be reestablished whenever application code changes and is fragile to changes in the underlying system. While it is possible in some cases for programmers to continuously reason about complex interactions between their code, the system, and failures (where the time and expertise are available), it is not a general solution and violates the fundamental purpose of strong consistency models, which is to make the behavior of the system easy to reason about. 
+We next propose \mdl to avoid this unnecessary tradeoff.
+% \Cref{subfig:read_breaks} shows an example where the operations shown in black are safe under naive parallelization, but are not longer safe once the r($f$) shown in gray is added.
 %\Cref{subfig:optimize_breaks} shows an example where naive parallelization is safe when the gray code is included, but that breaks once the gray code is optimized away.
-\Cref{subfig:resharding_breaks} shows an example where naive parallelization is safe as long as keys whose prefix starts with the same letter are always mapped to the same shard, but that breaks when they are mapped to different shards.
 
-Finally, \cref{subfig:suffix_closed_breaks} shows an example where naive parallelization results in new behavior despite the requests of $p_{12}$ and $p_{13}$ not being concurrent. Here it is possible for naive parallelization to return $n=1$, $m=0$ if w($m=1$) failed. This is not possible under Linearizability because if w($m=1$) failed then w($n=1$) would never have been dispatched.
-
-As a more concrete example of where \mdl{} is necessary for safe parallelization we show and discuss the Retwis post function in 
-\cref{fig:retwis-post} in \cref{sec:retwis-post}.
-
-Thus, naive parallelization reduces latency but violates the purpose of a strong consistency model by forcing programmers to continuously reason about complex interactions between their code, the system, and failures. We next propose \mdl{} to avoid this unnecessary tradeoff.
-
-
-
-\wl{why is it parallelization here instead of multidispatch? Should probably be just multi-dispatch}
 
 %\subsection{Case study: Retwis}
 
