@@ -2,7 +2,10 @@
 \label{sec:correctness}
 We consider an arbitrary, well-formed execution $\alpha$ of a set of application processes interacting with an \sys{} service. We define $e_1 <_p e_2$ to mean that $e_1$ and $e_2$ were issued by the same client, and $e_1$ was invoked before $e_2$ by that client, or $\text{inv}(e_1) < \text{inv}(e_2)$; we say that $e_1$ is the \textit{predecessor} request to $e_2$, and $e_2$ is the \textit{successor} request to $e_1$. We also define $e_3 \rightarrow e_4$ to mean $e_3$ precedes $e_4$ in real time, or $\text{resp}(e_3) < \text{inv}(e_4)$. To reason about the order of operations in \sys{}, we define several terms:
 
-Given an operation $e$, we define it as \textit{committed} once a quorum of replicas of the relevant shard added it to their buffered log. We define it as \textit{ordered} once a quorum of replicas have added it to their ordered log. We define it as \textit{coordinated} once the leader has received a coordination timestamp from the predecessor request.
+Given an operation $e$, we define it as \textit{committed} once a quorum of replicas of the relevant shard have added it to their buffered log.
+We define it as \textit{coordinated} once the leader has received a coordination timestamp from the predecessor request.
+We define it as \textit{ordered} once a quorum of replicas have added it to their ordered log.
+
 
 Finally, the sequential specification $\mathcal{G}_x$ of an object $x \in X$ is the set of all sequences of invocation-response pairs of reads and writes to $x \in X$ such that each read returns the value written by the most recent write.
 
@@ -75,7 +78,9 @@ Consider a pair of operations $e_1, e_2$ such that $e_1 <_p e_2$, and further as
 \begin{proof}
 We case upon the presence of shard leader failures:
 
-\wl{We "case"?}
+\wl{We "case"? -> We examine and prove all possible cases}
+\wl{Shard leader failure is too generic. I think it should be ``shard leader failure what an operation is committed but not ordered.}
+\wl{I think the no failure case should explicitly discuss the restriction of failures to being only committed but not ordered, because before committed is... and after ordered is ...}
 
 \noindentparagraph{Case 1.} \textit{No failures}.
 Let $e_1$ and $e_2$ be two operations such that $e_1 <_p e_2$.
@@ -90,9 +95,11 @@ We case upon which shard fails.
 
 \noindentparagraph{Subcase A.} \textit{Operations $e_1$ and $e_2$ are at separate shards. Shard with $e_1$ fails after $e_1$ is \textit{committed}, before it is \textit{ordered}. Shard with $e_2$ does not fail.}
 
-Assume shard with $e_1$ fails.
+Assume shard with $e_1$ fails. \wl{cut, this is already part of the case}
 
 During failover, all committed-but-not-ordered entries, including $e_1$, are processed and assigned new timestamps. Specifically, the new shard leader will call \texttt{getTimestampChain} for all committed-but-not-ordered entries, including $e_1$.
+
+\wl{While I think the following statement is true, I think you probably need a lemma that proves inductively that $e_2$ not failing will eventually result in getting a non-NULL value back}
 
 If $e_1$ had been assigned a timestamp prior to failure and coordinated $e_2$ (or some \textit{predecessor} chain ending with $e_2$), then since we know the shard with $e_2$ does not fail, \texttt{getTimestampChain} will return a non-NULL value reflecting the timestamp\_chain of $e_2$ (or some operation invoked after $e_1$ and before $e_2$. Importantly, this timestamp\_chain will include the timestamp initially assigned to $e_1$ prior to failure, which the new shard leader will assign as $e_1$'s new timestamp during failure upon the return of \texttt{getTimestampChain}. As shown in Case 1, the timestamps assigned prior to failure abide by $e_1 <_p e_2 \implies \epsilon_1 < \epsilon_2$.
 
