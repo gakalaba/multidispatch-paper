@@ -25,7 +25,7 @@ over its operations, denoted $<_S$.
 
 An application's processes, $P_i$, define a set of \textit{executions},
 which are sequences of alternating \textit{states} and
-\textit{actions}. The \textit{actions} will we focus on are the operations, $o_i$, issued to the back-end system.
+\textit{actions}. The \textit{actions} we will focus on are the operations, $o_i$, issued to the back-end system.
 % and the $i$th component of each state in $\alpha$.
 We say an
 operation is \textit{complete} if its invocation has a matching response in
@@ -41,10 +41,10 @@ $\complete(\alpha)||P$ is found by, for each operation $o$, shifting $o$'s respo
 $\res(o)$ left in $\complete(\alpha)|P$ until it immediately follows $o$'s
 invocation $\inv(o)$.
 Importantly, this maintains a process's
-\textit{issue order}, the order it invoked its operations. \ak{Intuitively, it translates the execution to a sequential one.}
+\textit{issue order}, the order it invoked its operations. Intuitively, it translates the execution to a sequential one.
 Finally, two operations in an execution $\alpha$ are
 ordered in real time~\cite{herlihy1990linearizability}, denoted
-$o_1 \rt_\alpha o_2$, if $\res(o_1)$ precedes $\inv(o_2)$ in $\alpha$. \ak{Note, operations that don't respect this relationship are \textit{concurrent}.}
+$o_1 \rt_\alpha o_2$, if $\res(o_1)$ precedes $\inv(o_2)$ in $\alpha$.
 
 We are now ready to define our new consistency model.
 \paragraph{\Multidispatch{} Linearizability.} An execution $\alpha_1$ satisfies \textit{\multidispatch{} linearizability} if it
@@ -58,11 +58,11 @@ $o_1$ and $o_2$, \\$o_1 \rt_{\alpha_1} o_2 \implies o_1 <_S o_2$.
 \end{enumerate}
 
 In plain language, an \MDL{} system guarantees it reflects a total order 
-over operations, just like traditional Linearizability. This order is constrained in two ways: First,
-it must be consistent with each process's issue order, and second, as in traditional Linearizability,
-it must be consistent with the real-time order of operations. The key difference is individual processes' concurrent operations appear to take effect in invocation order sequentially.
+over operations, just like traditional Linearizability. This order (1) guarantees to preserve each process's issue order and (2) guarantees the real-time order of operations, as in traditional Linearizability. The key difference is individual processes' concurrent operations appear to take effect in invocation order sequentially.
 
 \wl{Need a consistency pass to use the same suffix-closed/complete failure \{semantics\} or not everywhere}
+
+\ak{Some reviewers didn't like the idea that you can't "remove" these guarantees, ie they think it's necessary to have the option to have no ordering guarantees for concurrent ops when you don't want/need it (to bypass coordination overhead). Wondering if we should make it explicit that that's still very possible if a process spawns many new threads (and has distinct client IDs)? or if programmer uses some library that effectively abstracts that away? or what about the single-process cases where you can safely issue everything in parallel?}
 %\subsubsection{Suffix-Closed Failures}
 \paragraph{Suffix-Closed Failures.}
 \label{sec:mdl:def:failures}
@@ -75,13 +75,12 @@ correct behavior of most systems, and formally, this would result in
 $S|P \neq \complete(\alpha_2)||P$ for all legal sequential histories
 $S \in \spec$.
 We refer to this property as \textit{suffix-closed failure semantics}.
-\wl{Try to tie this back to the example in the previous section?}
 %\true{( example in \cref{subfig:suffix_closed_breaks} from the previous section, the return values r(n)=1, r(m)=0 violate this property because w(n=1) is observed by r(n)=1 and }
 
 
 In an \MDL{} system, suffix-closed failures must be guaranteed even in the
 face of concurrent operations from the same process, potentially to
-objects on different shards. For instance, if 3 operations are issued concurrently from the same process and the 2nd one fails, the 3rd one must also fail regardless of whether it could succeed. As we will see in Section~\ref{sec:mdl:zookeeper},
+objects on different shards. Drawing again on the example in figure ~\ref{fig:retwissequential}, if the operations from the yellow block are sent concurrently from the same process to an \mdl back-end and any of the operations from the loop on line 4 fail, then the remaining operations in the loop on line 4 and lines 6 and 7 must also fail regardless of whether any of them could succeed. \ak{this might be a bad example cuz now \textit{some} followers will see the object, but the poster won't and some other followers won't? really, line 5 should be atomic... and we could say if line 5 fails, then definitely lines 6 and 7 will.} As we will see in Section~\ref{sec:mdl:zookeeper},
 guaranteeing suffix-closed failures is one way in which existing systems do not provide \mdl{}.  
 
 \wl{Should we punch up this discussion? I think it's a major way we're different from A-Linearizability and its necessary! For instance, we need this for our equivalence result right?! That seems important!}
@@ -98,7 +97,7 @@ guaranteeing suffix-closed failures is one way in which existing systems do not 
     xshift=-3cm,
     align=center,
     yshift=2cm
-] {Correct\\Sequential\\App\\(A)};
+] {Sequential\\App\\(A)};
 
 \node (linstore) [draw,
     minimum size=2cm,
@@ -112,7 +111,7 @@ guaranteeing suffix-closed failures is one way in which existing systems do not 
     align=center,
     yshift=2cm,
     fill=blue!50
-] {Correct\\Concurrent\\App\\(A')};
+] {Concurrent\\App\\(A')};
 
 \node (mdlinstore) [draw,
     minimum size=2cm,
@@ -161,8 +160,6 @@ The aim is to then move operation invocations earlier such that the application
 can issue multiple operations concurrently and reap the performance benefits 
 of an \MDL{} system.
 
-\wl{This is the FIRST time the application being concurrent shows up in the paper, this seems too late. Probably needs to be mentioned in the first two sections.}
-
 To produce the new application $A^\prime$, we then move actions in $A$ before prior 
 actions provided $A^\prime$ maintains the following:
 \textbf{(R1)} the order of data-dependent actions within
@@ -176,11 +173,11 @@ actions and operation invocations (in particular, the first invocation in a
 sequence of operations), and
 \textbf{(R6)} the order between non-system-facing external actions and operation responses (e.g., by waiting for the successful responses of any outstanding operations before sending a message to a user).
 
-An example of the transform is shown in figure ~\ref{fig:retwis-post2}\subref{fig:retwistransform}. Mainly, all of the calls made to the back-end system have been replaced with futures, allowing each of them to be concurrent with one another, and synchronization points have been added to respect data-dependencies.
+An example of the transform is shown in figure ~\ref{fig:retwis-post2}\subref{fig:retwistransform}. Mainly, all of the calls made to the back-end system have been replaced with futures, allowing each of them to be concurrent with one another, and synchronization points have been added to respect data-dependencies. It is also worth noting \mdl{} makes no guarantees on the response order of operations. On line 11, it suffices to wait on just \texttt{\$future3} to return because none of the preceding operations require a return value. It is unclear if the previous operations have returned at the time of \texttt{\$future3} returning a value, but because of suffix-closed failure and invocation ordering guarantees, it is guaranteed they will succeed and take effect before the operation associated with \texttt{\$future3} takes effect.
 
 \subsection{External Equivalence}
 \label{sec:mdl:exteq}
-So far we have defined a new consistency model for back-end systems and we have shown how to transform applications interacting with these systems (figure ~\ref{fig:transform}). Finally, we show that users cannot tell the difference between interacting with the transformed applications working atop back-end systems guaranteeing \mdl{} and the sequential versions of those applications that interact with Linearizable back-ends. More formally, we can state this result, which we call External Equivalence, as the following theorem:
+So far we have defined a new consistency model for back-end systems and we have shown how to transform applications interacting with these systems. Finally, we show that users cannot tell the difference between interacting with the transformed applications working atop back-end systems guaranteeing \mdl{} and the sequential versions of those applications that interact with Linearizable back-ends. More formally, we can state this result, which we call External Equivalence, as the following theorem:
 % externally equivalent executions are indistinguishable to users.
 
 \begin{thm}
@@ -191,15 +188,11 @@ $\alpha^\prime$ is an execution of $A^\prime$ that satisfies
 of $A$ that satisfies linearizability.
 \end{thm}
 
-
-We include a complete proof in the appendix.
-
-
 % \begin{proof}
-% The proof proceeds in steps: First, we create an execution $\alpha$ from
-% $\alpha^\prime$ by essentially undoing the parallelizing transformation in
-% each process's sub-execution. Second, we produce $\beta$ by fixing the order
-% of actions across processes to ensure $\beta$ is well-formed and satisfies linearizability.
+The proof proceeds in steps: First, we create an execution $\alpha$ from
+$\alpha^\prime$ by essentially undoing the parallelizing transformation in
+each process's sub-execution. Second, we produce $\beta$ by fixing the order
+of operations across processes to ensure $\beta$ is well-formed and satisfies linearizability. A complete proof of the result can be found in the appendix. 
 
 % By the assumption that $A$ is well-formed and the rules of $\transform$,
 % each $\alpha^\prime | P_i$ comprises sub-sequences of local and
