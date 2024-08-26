@@ -344,6 +344,7 @@ Modern applications can easily have fanouts of 10, 100, or even 1000~\cite{dean2
 For performance reasons, application processes will issue operations that seemingly don't need ordering guarantees \textit{concurrently} rather than \textit{sequentially}, either in multiple threads or via asynchronous libraries for operations. However, as shown, using concurrency can lead to incorrect application behavior. Linearizability thus forces developers to either sacrifice performance by writing sequential programs or it introduces developer burden if programmers want to write safe concurrent programs. We now introduce \mdl{}, a new consistency model that adds ordering guarantees for single-processes exhibiting concurrent behavior
 while also redeeming the performance benefits from concurrency.
 
+\ak{in the next section we just kinda jump right to invocation order... meanwhile in this section we only discussed ordering guarantees. should we motivate invocation order specifically???}
 % \wl{Should we talk about the situation where single-dispatch is sufficient, i.e., fanout 1 (or 0), and places where the fanout is the same as the depth of data dependencies. The FB stat of 1000s of operations with sequential chains at most dozens deep suggests that fanout is the dominant factor here, so we should add that tidbit if we do.}
 
 
