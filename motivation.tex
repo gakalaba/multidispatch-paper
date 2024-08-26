@@ -1,16 +1,104 @@
 \section{Background \& Motivation}
 \label{sec:motivation}
 
+\newcommand{\cmark}{\ding{51}}%
+\newcommand{\xmark}{\ding{55}}%
+\begin{figure}
+\begin{tikzpicture}
+    
+\draw [stealth-](-0.6\textwidth-20,1.5) --  node[midway,fill=none, align=left, anchor=north]{\textit{T}}(-\textwidth-60, 1.5);
+\node (c1) [
+    minimum size=0.2cm,
+    xshift=-\textwidth-40,
+    align=center,
+    yshift=3cm,
+    fill=none
+] {$C_i:$};
+
+\node (c2) [
+    minimum size=0.2cm,
+    xshift=-\textwidth-40,
+    align=center,
+    yshift=1.9cm,
+    fill=none
+] {$C_j:$};
+
+% o1
+\draw [-](-\textwidth,3) --  node[midway,fill=white, align=center]{\textit{$o_1$}}(-\textwidth+60, 3);
+\draw [-](-\textwidth,3-0.2) --  node[midway,fill=none, align=left, anchor=south]{\textit{inv}}(-\textwidth,3+0.2);
+\draw [-](-\textwidth+60, 3-0.2) --  node[midway,fill=none, align=left, anchor=south]{\textit{resp}}(-\textwidth+60, 3+0.2);
+
+% o2
+\draw [-](-\textwidth+100,2) --  node[midway,fill=white, align=center]{\textit{$o_2$}}(-\textwidth+160, 2);
+\draw [-](-\textwidth+100,2-0.2) --  node[midway,fill=none, align=left, anchor=south]{\textit{inv}}(-\textwidth+100,2+0.2);
+\draw [-](-\textwidth+160, 2-0.2) --  node[midway,fill=none, align=left, anchor=south]{\textit{resp}}(-\textwidth+160, 2+0.2);
 
 
+\draw [stealth-](-0.6\textwidth-20,-2.3) --  node[midway,fill=none, align=left, anchor=north]{\textit{T}}(-\textwidth-60, -2.3);
+\node (c1) [
+    minimum size=0.2cm,
+    xshift=-\textwidth-40,
+    align=center,
+    yshift=0cm,
+    fill=none
+] {$C_1:$};
+
+\node (c2) [
+    minimum size=0.2cm,
+    xshift=-\textwidth-40,
+    align=center,
+    yshift=-0.6cm,
+    fill=none
+] {$C_2:$};
+
+\node (c3) [
+    minimum size=0.2cm,
+    xshift=-\textwidth-40,
+    align=center,
+    yshift=-1.2cm,
+    fill=none
+] {$C_3:$};
+
+% \node (c4) [
+%     minimum size=0.2cm,
+%     xshift=-\textwidth-40,
+%     align=center,
+%     yshift=-1.8cm,
+%     fill=none
+% ] {$C_4:$};
 
 
+% o1
+\draw [-](-\textwidth,0) --  node[midway,fill=white, align=center]{\textit{$W_1(x=1)$}}(-\textwidth+60, 0);
+\draw [-](-\textwidth,0-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth,0+0.2);
+\draw [-](-\textwidth+60, 0-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth+60, 0+0.2);
+% o2
+\draw [-](-\textwidth-20,-0.6) --  node[midway,fill=white, align=center]{\textit{$W_2(x=2)$}}(-\textwidth+80, -0.6);
+\draw [-](-\textwidth-20,-0.6-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth-20,-0.6+0.2);
+\draw [-](-\textwidth+80, -0.6-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth+80, -0.6+0.2);
+% o3
+\draw [-](-\textwidth+10,-1.2) --  node[midway,fill=white, align=center]{\textit{$W_3(x=3)$}}(-\textwidth+70, -1.2);
+\draw [-](-\textwidth+10,-1.2-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth+10,-1.2+0.2);
+\draw [-](-\textwidth+70, -1.2-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth+70, -1.2+0.2);
+% % o4
+% \draw [-](-\textwidth-20,-1.8) --  node[midway,fill=white, align=center]{\textit{$W_4(x=4)$}}(-\textwidth+60, -1.8);
+% \draw [-](-\textwidth-20,-1.8-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth-20,-1.8+0.2);
+% \draw [-](-\textwidth+60, -1.8-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth+60, -1.8+0.2);
 
 
+% 05
+\draw [-](-\textwidth+110,-1.8) --  node[midway,fill=white, align=center]{\textit{$R(x)=?$}}(-\textwidth+170, -1.8);
+\draw [-](-\textwidth+110,-1.8-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth+110,-1.8+0.2);
+\draw [-](-\textwidth+170, -1.8-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth+170, -1.8+0.2);
+\end{tikzpicture}
+
+\centering
+\caption{The 3 write operations are all concurrent with respect to one another, because it is not the case that any of the writes has a response event before any of the other two have an invocation event. Any interleaving of these operations would satisfy a correct total ordering under linearizeability. The read operation, however, is ordered in real time after the 3 writes, so it must return a value for $x$ consistent with all 3 writes taking place, ie it cannot return the initial value for $x$ before the writes took place. It could return 1, 2, or 3, demonstrating it is difficult to reason about the ordering of concurrent operations. }
+\label{fig:lin_basics}
+\end{figure}
 
 
-
-This section provides the necessary background on distributed applications, consistency models, Linearizability, and the programming paradigm of applications that use it.
+This section provides the necessary background on distributed applications, consistency models, Linearizability, and the needs and behaviors of applications that work atop Linearizability.
 % It then explains why naive parellelization of operations to a Linearizable system is error-prone and fragile.
 
 % \begin{figure*}[t!]
@@ -58,8 +146,8 @@ This section provides the necessary background on distributed applications, cons
 |\colorbox{yellow}{(6) \$r->lpush("timeline",\$postid);}|
 |\colorbox{yellow}{(7) \$r->ltrim("timeline",0,1000);}|
 \end{minted}
-        \label{fig:retwissequential}
         \caption{PostSequential}
+        \label{fig:retwissequential}
     \end{subfigure}%
     
     \begin{subfigure}[b]{\textwidth}
@@ -77,8 +165,8 @@ This section provides the necessary background on distributed applications, cons
 |\colorbox{yellow}{(11) \$future3->value();}|
 
 \end{minted}
-        \label{fig:retwistransform}
         \caption{PostIOCTransformed}
+        \label{fig:retwistransform}
     \end{subfigure}
     \caption{The Retwis post function creates a new post and adds a reference to it in each of the timelines of a the poster's followers, as well as a global timeline. It also truncates the global timeline to the 1000 most recent posts. As written, each operation must complete before initiating the next, resulting in many round trips to the datastore. Most of these operations have no data- or control-flow dependencies on each other. However, they cannot be naively parallelized, as many of them \emph{must} occur in a particular order. For example, the post id must appear in any timelines until the post is created.}
     \label{fig:retwis-post2}
@@ -86,12 +174,12 @@ This section provides the necessary background on distributed applications, cons
 
 \paragraph{Background and Terminology.}
 We consider here the common model of an application that stores its shared state in a separate backend system.
-Users interact with the application by sending \textit{requests}, e.g., a HTTP request, to one of many concurrent \textit{application processes} that implement the application logic. Application processes are stateless and process requests on behalf of many users. Application processes send \textit{operations} to a backend \textit{system} that provides the concurrent application processes with access to shared, persistent state.
+Users interact with the application by sending \textit{requests}, e.g., a HTTP request, to one of many concurrent \textit{application processes} that implement the application logic. Application processes are stateless and process requests on behalf of many users. Application processes send \textit{operations} to a backend \textit{system} that provides the concurrent application processes with access to shared, persistent state. This shared state is composed of the \textit{objects} on which the operations are invoked.
 
-An application's processing of a user's request will result in some number of operations to the backend system, which we refer to as the request's \textit{fanout}. Our goal is to minimize the \textit{end-to-end latency} of an application processing a user's request. For instance, the \texttt{PostSequential} request shown in Figure ~\ref{fig:retwis-post2} has a fanout of 5 more than the number of followers of the user posting. Our goal is to minimize the latency of the \texttt{post} function, which would overall speed up the Retwis application.
+\ak{cut this paragraph?} An application's processing of a user's request will result in some number of operations to the backend system, which we refer to as the request's \textit{fanout}. Our goal is to minimize the \textit{end-to-end latency} of an application processing a user's request. For instance, the \texttt{PostSequential} request shown in Figure ~\ref{fig:retwis-post2} has a fanout of 5 more than the number of followers of the user posting. Our goal is to minimize the latency of the \texttt{post} function, which would overall speed up the Retwis application.
 
-A system's \textit{consistency model} provides guarantees about the observable return values for a set of operations.
-Programmers rely on a system's consistency model while building their applications. By defining the system's set of allowed behaviors, a consistency model permits programmers to ignore the system's implementation and instead focus on ensuring their applications are correct given these behaviors.
+A system's \textit{consistency model} provides guarantees about the observable return values for a set of operations over the objects the back-end stores.
+Programmers rely on a system's consistency model while building their applications. By defining the system's set of allowed behaviors and constraints on the return values, a consistency model permits programmers to ignore the system's implementation and instead focus on ensuring their applications are correct.
 
 \newcommand{\myp}[1]{\underline{\quad$p_{#1}$\quad}}
 % \begin{figure*}
@@ -201,38 +289,61 @@ Programmers rely on a system's consistency model while building their applicatio
 % \end{figure*}
 
 \paragraph{Linearizability is a Nearly Ideal Consistency Model.}
-\textit{Linearizability} is a `strong' consistency model which guarantees that return values for operations to a system are equivalent to some sequential total-order of operations that respects real-time precedence---all processes observe the same order of operations, and if one operation finishes before another begins, the former is ordered before the later~\cite{herlihy1987linearizability, herlihy1990linearizability}.
-Its strong guarantees make it simple for application programmers to reason about. It reduces the behavior of a complex, highly concurrent distributed system to the equivalent of a single machine that processes operations one at time in the order they arrive over the network.
+% \textit{Linearizability} is a `strong' consistency model which guarantees that return values for operations to a system are equivalent to some sequential total-order of operations that respects real-time precedence---all processes observe the same order of operations, and if one operation finishes before another begins, the former is ordered before the later~\cite{herlihy1987linearizability, herlihy1990linearizability}.
+% Its strong guarantees make it simple for application programmers to reason about. It reduces the behavior of a complex, highly concurrent distributed system to the equivalent of a single machine that processes operations one at time in the order they arrive over the network.
 
-Linearizability is one of a handful of dominant consistency models and is the consistency model provided by many fundamental protocols---e.g., Paxos~\cite{lamport1998paxos}, RAFT~\cite{ongaro2014raft}, PBFT~\cite{castro1999pbft}---and the many foundational systems that implement them---e.g., Chubby~\cite{burrows2006chubby}, ZippyDB~\cite{zippyblog}, etcd~\cite{etcd}.
+Linearizability is a `strong' consistency model with strong guarantees that make it simple
+for application programmers to reason about. 
+Specifically, it guarantees that all return values reflect some legal total order of the operations taking place over the objects in the back-end, and that this order respects \textit{real-time} precedence. These \textit{real-time} guarantees mean if one operation finishes before another begins, the former must be ordered before the latter~\cite{herlihy1987linearizability, herlihy1990linearizability}. For example, in figure ~\ref{fig:lin_basics}, $o_1$ is ordered in real time before $o_2$ because the response of $o_1$ happens in real time before the invocation of $o_2$. Therefore, a linearizeable back-end guarantees the return value of $o_2$ is consistent with an execution where $o_1$ takes effect before it.
+
+Linearizability is one of a handful of dominant consistency models and is the consistency model provided by many fundamental protocols---e.g., Paxos~\cite{lamport1998paxos}, RAFT~\cite{ongaro2014raft}, PBFT~\cite{castro1999pbft}---and the many foundational systems that implement them---e.g., Chubby~\cite{burrows2006chubby}, ZippyDB~\cite{zippyblog}, etcd~\cite{etcd}. It is a popular choice because it reduces the behavior of a complex, highly concurrent distributed system to the equivalent of a single machine that processes operations one at time in the order they arrive over the network, where globally, all processes observe the same order of operations.
 %ABD~\cite{abd}, primary-backup~\cite{primary-backup}, etc.\@---
 % (ensured by the sequential ordering) 
 % (ensured by the real-time ordering)
 
-\paragraph{Low Latency vs. Correctness}
-As mentioned above, application-level requests can fanout into multiple system-level operations. For performance reasons, application processes will issue multiple operations at a time \textit{concurrently} rather than \textit{sequentially}, whether in multiple threads or by using asynchronous libraries for operations. For example, consider an application request with fanout 100, where each operation takes 5\,ms. A single application process which issues operations sequentially results in a latency of 500\,ms compared to the concurrent process with a latency of 5\,ms.
-Modern applications can easily have fanouts of 10, 100, or even 1000~\cite{dean2013tail}. For instance, Meta reports that processing a single Web request results in thousands of system operations~\cite{ajoux2015challenges}.
 
-Unfortunately, since Linearizability does not provide easy-to-reason about ordering guarantees for concurrent operations issued by 1 or more processes, concurrently issued operations can lead to incorrect or unsafe application behavior. Consider \texttt{PostSequential} in Figure ~\ref{fig:retwissequential} which shows the original, sequential, \texttt{post} function from Retwis, where each operation is issued sequentially. In an effort to reduce the latency of Post, a programmer might try to issue lines 1 and 3 (highlighted in green) concurrently and then, after those return, issue lines 2, 4, 6, 7 (yellow) concurrently. The green batch of lines must return synchronously before the yellow batch, due to the data dependencies on the \texttt{\$postid} and \texttt{\$followers} variables.
 
-Concurrently dispatched operations have no ordering guarantees between them so now the programmer must reason about all the potential interleavings of all the concurrent operations to make sure they are safe. One possible interleaving for the rewritten \texttt{PostSequential} function could order a push from line 4 before the set on line 2; if a follower happens to look at their timeline after the post is referenced but before it is created, then it would see an object for the post but no post content. Similarly, if line 6 is ordered before line 4, then the creator of the post might see similar strange behavior. Worse yet, if the post creation fails, then the users could see this strange object appear and subsequently disappear in the future when some failure recovery scheme removes it from their timelines. A correct version of the rewritten function requires line 2 to take effect before the subsequently invoked lines, or, for the operations in the yellow block to take effect sequentially.
+
+
+
+\paragraph{Concurrency}
+While linearizeable systems provide understandable guarantees about operations with real-time relationships, they provide no ordering guarantees on concurrent operations, which by definition have no real-time relationships. This is because linearizability provides \textit{some} legal total order of operations (that all the clients will see reflected in their return values), but it is difficult to reason about what specific total order that will be. Figure ~\ref{fig:lin_basics} shows an example of 3 concurrent write operations all dispatched to the same object. In this case, the operations could take effect in any order, all would be correct under linearizability. 
+
+When concurrent operations come from separate, independent application processes, linearizability's no ordering guarantees is quite suitable for system behavior. As shown in figure ~\ref{fig:lin_basics}, if the 3 clients issuing the concurrent writes are 3 application processes unaware of the other writes sent to the system, then allowing all possible return values for $R(x)$ is appropriate. In fact, it reduces complexity so that application developers don't have to reason about potentially concurrent operations sent to the system from other applications they don't care about. 
+
+In contrast, when concurrent operations come from a single application process, linearizability's no ordering guarantees can lead to unexpected and unwanted application behavior.  Consider \texttt{PostSequential} in Figure ~\ref{fig:retwissequential} which shows the \texttt{post} function from Retwis where each operation is issued sequentially. A new version that naively introduces concurrency could issue lines 1 and 3 (highlighted in green) concurrently and then, after those return, issue lines 2, 4, 6, 7 (yellow) concurrently. Note, the green batch of lines must return sequentially before the yellow batch, due to the data dependencies on the \texttt{\$postid} and \texttt{\$followers} variables. With no ordering guarantees, it is possible that line 4 takes effect before line 2; in this case, if a follower happens to look at their timeline after the post is referenced but before it is created, then they would see an object for the post but no post content. Similarly, if line 6 is ordered before line 4, then the creator of the post might see similar strange behavior. Worse yet, if the post creation fails (line 2), then the users could see this strange object appear and subsequently disappear in the future when some failure recovery scheme removes it from their timelines. These types of behaviors are not standard for most applications and developers should want to prevent them from occurring.
+
+% \begin{figure}
+
+% \begin{tabular}{ |c|c|c| } 
+% \hline
+%  & Concurrent & sequential \\
+% \hline
+% $n$ processes & \cmark & \cmark \\ 
+% 1 process & \xmark & \cmark \\ 
+% \hline
+% \end{tabular}
+%     \centering
+%     \caption{Caption}
+%     \label{fig:cases}
+% \end{figure}
+
+% You have to globally reason about things. Are these two things allowed to be ordered independently? That depends….. If thse two pieces of data aren’t touched.. But you don’t know that by just looking at the function in isolation.
+It can be difficult for a programmer to tell whether an application process requires ordering guarantees or even what the right set is.
+% The ordering guarantees of a correct concurrent \texttt{post} function are line 2 << line 4 << line 4 << line 7. 
+While a developer might write a concurrent application function that looks correct in isolation, such as the modified version of \texttt{PostSequential}, they actually must analyze concurrent application code \textit{globally} (system-wide) for new potential behaviors created by a rich set of possible operation interleavings.
+Moreover, the need for ordering guarantees changes and is fragile to changes in the underlying system. While it is possible in some cases for programmers to continuously reason about complex interactions between their code, the system, and failures (where the time and expertise are available), it is not a general solution and violates the fundamental purpose of strong consistency models, which is to make the behavior of the system easy to reason about. 
+
+% When ordering guarantees across separate application processes are needed, then synchronization mechanisms external to the back-end system can be used to meet specific needs ~\ref{} (thinking message passing? barriers? distributed locks?). 
+Individual processes can easily reclaim ordering guarantees when interacting with linearizable systems by issuing operations \textit{sequentially}. \textit{Sequentially} issued operations are operations with real-time ordering between them to ensure they take effect in sequential order over a linearizable back-end. If $C_i == C_j$ in figure ~\ref{fig:lin_basics}, then that individual processes would effectively be using real-time ordering to impose ordering guarantees. Sequentially issued operations impose sequential ordering across all operations issued by a process, making it simple to write correct applications. For example, the original version of \texttt{PostSequential} avoids all the issues that arise with the concurrent version.
+
+\paragraph{Performance}
+While there is a strong case for individual processes to avoid concurrency to prevent strange program behavior caused by no ordering guarantees, sequential application processes can incur large latency overheads, especially as their application-level requests fanout into multiple system-level operations. For example, consider an application request with fanout 100, where each operation takes 5\,ms. A single application process which issues operations sequentially results in a latency of 500\,ms compared to the concurrent process with a latency of 5\,ms.
+Modern applications can easily have fanouts of 10, 100, or even 1000~\cite{dean2013tail}. For instance, Meta reports that processing a single Web request results in thousands of system operations~\cite{ajoux2015challenges}. 
+
+For performance reasons, application processes will issue operations that seemingly don't need ordering guarantees \textit{concurrently} rather than \textit{sequentially}, either in multiple threads or via asynchronous libraries for operations. However, as shown, using concurrency can lead to incorrect application behavior. Linearizability thus forces developers to either sacrifice performance by writing sequential programs or it introduces developer burden if programmers want to write safe concurrent programs. We now introduce \mdl{}, a new consistency model that adds ordering guarantees for single-processes exhibiting concurrent behavior
+while also redeeming the performance benefits from concurrency.
 
 % \wl{Should we talk about the situation where single-dispatch is sufficient, i.e., fanout 1 (or 0), and places where the fanout is the same as the depth of data dependencies. The FB stat of 1000s of operations with sequential chains at most dozens deep suggests that fanout is the dominant factor here, so we should add that tidbit if we do.}
 
-Linearizability imposes a tradeoff for application developers to choose between performance and correctness. On the one hand, programmers can issue operations sequentially and be guaranteed correct application behavior at the cost of worse performance. On the other hand, programmers can analyze the application code for these new behaviors, reason about their effects on correctness, and then change the code to ensure correctness. 
-This method requires expertise to determine all the potential behaviors, careful reasoning to determine what is correct, and makes the code more complex. Moreover, the correctness of an application needs to be reestablished whenever application code changes and is fragile to changes in the underlying system. While it is possible in some cases for programmers to continuously reason about complex interactions between their code, the system, and failures (where the time and expertise are available), it is not a general solution and violates the fundamental purpose of strong consistency models, which is to make the behavior of the system easy to reason about. 
-We next propose \mdl to avoid this unnecessary tradeoff.
-% \Cref{subfig:read_breaks} shows an example where the operations shown in black are safe under naive parallelization, but are not longer safe once the r($f$) shown in gray is added.
-%\Cref{subfig:optimize_breaks} shows an example where naive parallelization is safe when the gray code is included, but that breaks once the gray code is optimized away.
 
-
-%\subsection{Case study: Retwis}
-
-% Consequently, it 
-% enables applications to achieve lower end-to-end latency. Provided 
-% programmers obey a set of rules when parallelizing their applications 
-% (described in Section~\ref{sec:}), an application interacting with a 
-% multi-issue linearizability system will behave identically to the 
-% original application interacting with a linearizable system. Thus, 
-% programmers can reap these performance benefits without fear of 
-% breaking their applications.
