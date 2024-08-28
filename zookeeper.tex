@@ -1,6 +1,10 @@
 \section{MDL Beyond a Single Shard is Hard}
 \label{sec:mdl:zookeeper}
 
+\ak{TODO: new figure}
+
+\ak{TODO: incorporate running retwis Post example.}
+
 \todo{\mdl{} isn't local is part of the explanation of why there are no cross-shard implementation.}
 
 \todo{Change to 'do existing systems provide \mdl{}. Say we have a new consistency model. Do existing provide it? Surprisingly it appears single-shard implementations do not, though there is a design for it on a single shard. Then structure single-shard \mdl{} and multi-shard \mdl{}.}
@@ -12,8 +16,207 @@ multiple shards.
 
 \begin{figure}[!tb]
     \centering
-    \includegraphics[width=\linewidth]{figs/somet.png}
-    \caption{Example where two concurrent client processes each submit two concurrent operations. Keys \textbf{X} and \textbf{Y} are at different shards. It is possible that $R_2$ arrives before $W_1$ at shard \textbf{X}, and $W_2$ arrives before $R_1$ at shard \textbf{Y}. Since \MDL{} requires operations to take effect in invocation order, if $R_1$ returns 1, then $W_1$ must take effect before $R_1$, so $R_2$ must also return 1.}
+    % \includegraphics[width=\linewidth]{figs/somet.png}
+    \begin{tikzpicture}
+
+% Shard X
+\node (shardy) [
+    xshift=-\textwidth+125,
+    align=center,
+    anchor=south,
+    yshift=0.4cm,
+    fill=none
+] {Shard 1};
+\node (appbox) [draw,
+    minimum size=0.8cm,
+    xshift=-\textwidth+125,
+    align=center,
+    yshift=0cm
+] {...};
+
+\node (linstore) [draw,
+    minimum size=0.8cm,
+    align=center,
+    xshift=-\textwidth+125,
+    yshift=-0.8cm
+] {$R_2$};
+
+\node (appbox) [draw,
+    minimum size=0.8cm,
+    xshift=-\textwidth+125,
+    align=center,
+    yshift=-1.6cm
+] {$W_1$};
+
+\node (linstore) [draw,
+    minimum size=0.8cm,
+    align=center,
+    xshift=-\textwidth+125,
+    yshift=-2.4cm
+] {...};
+
+
+% Shard Y
+\node (shardy) [
+    xshift=-\textwidth+180,
+    align=center,
+    anchor=south,
+    yshift=0.4cm,
+    fill=none
+] {Shard 2};
+
+\node (mdapp) [draw,
+    minimum size=0.8cm,
+    xshift=-\textwidth+180,
+    align=center,
+    yshift=0cm
+] {...};
+
+\node (mdlinstore) [draw,
+    minimum size=0.8cm,
+    xshift=-\textwidth+180,
+    align=center,
+    yshift=-0.8cm
+] {$W_2$};
+
+\node (appbox) [draw,
+    minimum size=0.8cm,
+    xshift=-\textwidth+180,
+    align=center,
+    yshift=-1.6cm
+] {$R_1$};
+
+\node (linstore) [draw,
+    minimum size=0.8cm,
+    align=center,
+    xshift=-\textwidth+180,
+    yshift=-2.4cm
+] {...};
+
+\draw [stealth-](-\textwidth+138, -0.8) --  node[midway,fill=none]{}(-\textwidth+167,-1.6);
+
+
+\draw [stealth-](-\textwidth+167,-0.8) --  node[midway,fill=none,align=center]{}(-\textwidth+138, -1.6);
+
+%-------------------------------------
+%-------------------------------------
+\node (c1) [
+    minimum size=0.2cm,
+    xshift=-\textwidth-40,
+    align=center,
+    yshift=0.8cm,
+    fill=none
+] {$C_1:$};
+\node (post1) [
+    xshift=-\textwidth-10,
+    align=center,
+    yshift=0.8cm,
+    fill=none
+] {\texttt{Post \{}};
+\node (post2) [
+    xshift=-\textwidth-10,
+    align=center,
+    yshift=0.4cm,
+    fill=none
+] {\texttt{...}};
+\node (post3) [
+    xshift=-\textwidth-10,
+    align=center,
+    yshift=-1.2cm,
+    fill=none
+] {\texttt{...}};
+\node (post4) [
+    xshift=-\textwidth-40,
+    align=center,
+    yshift=-1.4cm,
+    fill=none
+] {\texttt{\}}};
+
+%------------------------------
+\node (c2) [
+    minimum size=0.2cm,
+    xshift=-\textwidth-40,
+    align=center,
+    yshift=-2.5cm,
+    fill=none
+] {$C_2:$};
+
+\node (timeline1) [
+    xshift=-\textwidth+10,
+    align=center,
+    yshift=-2.5cm,
+    fill=none
+] {\texttt{ShowTimeline \{}};
+\node (timeline2) [
+    xshift=-\textwidth-10,
+    align=center,
+    yshift=-2.9cm,
+    fill=none
+] {\texttt{...}};
+\node (timeline3) [
+    xshift=-\textwidth-10,
+    align=center,
+    yshift=-3.9cm,
+    fill=none
+] {\texttt{...}};
+\node (timelin4) [
+    xshift=-\textwidth-40,
+    align=center,
+    yshift=-4.1cm,
+    fill=none
+] {\texttt{\}}};
+
+% \node (c1) [
+%     minimum size=0.2cm,
+%     xshift=-\textwidth-40,
+%     align=center,
+%     yshift=0cm,
+%     fill=none
+% ] {$C_1:$};
+% \node (post) [
+%     xshift=-\textwidth-40,
+%     align=center,
+%     anchor=south,
+%     yshift=0.4cm,
+%     fill=none
+% ] {\texttt{Post}};
+
+% \node (c2) [
+%     minimum size=0.2cm,
+%     xshift=-\textwidth-40,
+%     align=center,
+%     yshift=-3.3cm,
+%     fill=none
+% ] {$C_2:$};
+
+% \node (timeline) [
+%     xshift=-\textwidth-20,
+%     align=center,
+%     anchor=south,
+%     yshift=-2.9cm,
+%     fill=none
+% ] {\texttt{ShowTimeline}};
+
+% W1
+\draw [-](-\textwidth-30,0) --  node[midway,fill=white, align=center]{\textit{$W_1(\texttt{"post:\$postid"})$}}(-\textwidth+90, 0);
+\draw [-](-\textwidth-30,-0-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth-30,0+0.2);
+\draw [-](-\textwidth+90, 0-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth+90, 0+0.2);
+% W2
+\draw [-](-\textwidth-20,-0.6) --  node[midway,fill=white, align=center]{\textit{$W_2(\texttt{"timeline"})$}}(-\textwidth+100, -0.6);
+\draw [-](-\textwidth-20,-0.6-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth-20,-0.6+0.2);
+\draw [-](-\textwidth+100, -0.6-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth+100, -0.6+0.2);
+
+% R1
+\draw [-](-\textwidth-30,-3.3) --  node[midway,fill=white, align=center]{\textit{$R_1(\texttt{"timeline"})$}}(-\textwidth+60, -3.3);
+\draw [-](-\textwidth-30,-3.3-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth-30,-3.3+0.2);
+\draw [-](-\textwidth+60, -3.3-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth+60, -3.3+0.2);
+% R2
+\draw [-](-\textwidth+70,-3.3) --  node[midway,fill=white, align=center]{\textit{$R_2(\texttt{"post:\$postid"})$}}(-\textwidth+190, -3.3);
+\draw [-](-\textwidth+70,-3.3-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth+70,-3.3+0.2);
+\draw [-](-\textwidth+190, -3.3-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth+190, -3.3+0.2);
+
+\end{tikzpicture}
+    \caption{Example where two concurrent client processes each submit two concurrent operations. The first client is completing operations from the Retwis \texttt{Post} function, while the second from the Retwis \texttt{ShowTimeline} function. Both functions touch the shared keys, \texttt{"post:\$postid"} and \texttt{"timeline"}, which are at different shards (1 and 2 respectively). Without coordination in the protocol, it is possible that $R_2$ arrives before $W_1$ at shard 1, and $W_2$ arrives before $R_1$ at shard 2. This would not provide a total order of operations and would result in $C_2$'s timeline showing a dangling posted object, violating the guarantees defined in \mdl{}.}
     \label{fig:concurrentbatches}
 \end{figure}
 
