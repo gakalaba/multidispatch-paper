@@ -1,18 +1,7 @@
 \section{MDL Beyond a Single Shard is Hard}
 \label{sec:mdl:zookeeper}
 
-\ak{TODO: new figure}
-
-\ak{TODO: incorporate running retwis Post example.}
-
-\todo{\mdl{} isn't local is part of the explanation of why there are no cross-shard implementation.}
-
 \todo{Change to 'do existing systems provide \mdl{}. Say we have a new consistency model. Do existing provide it? Surprisingly it appears single-shard implementations do not, though there is a design for it on a single shard. Then structure single-shard \mdl{} and multi-shard \mdl{}.}
-
-There are several existing systems that could be used to provide
-\multidispatch{} linearizability on a single shard. In this section,
-we briefly describe them and then show how they fail to extend to
-multiple shards.
 
 \begin{figure}[!tb]
     \centering
@@ -122,10 +111,16 @@ multiple shards.
 \node (post3) [
     xshift=-\textwidth-10,
     align=center,
-    yshift=-1.2cm,
+    yshift=-0.4cm,
     fill=none
 ] {\texttt{...}};
 \node (post4) [
+    xshift=-\textwidth-10,
+    align=center,
+    yshift=-1.2cm,
+    fill=none
+] {\texttt{...}};
+\node (post5) [
     xshift=-\textwidth-40,
     align=center,
     yshift=-1.4cm,
@@ -166,6 +161,7 @@ multiple shards.
     fill=none
 ] {\texttt{\}}};
 
+
 % \node (c1) [
 %     minimum size=0.2cm,
 %     xshift=-\textwidth-40,
@@ -202,46 +198,67 @@ multiple shards.
 \draw [-](-\textwidth-30,-0-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth-30,0+0.2);
 \draw [-](-\textwidth+90, 0-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth+90, 0+0.2);
 % W2
-\draw [-](-\textwidth-20,-0.6) --  node[midway,fill=white, align=center]{\textit{$W_2(\texttt{"timeline"})$}}(-\textwidth+100, -0.6);
-\draw [-](-\textwidth-20,-0.6-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth-20,-0.6+0.2);
-\draw [-](-\textwidth+100, -0.6-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth+100, -0.6+0.2);
+\draw [-](-\textwidth-20,-0.8) --  node[midway,fill=white, align=center]{\textit{$W_2(\texttt{"timeline"})$}}(-\textwidth+100, -0.8);
+\draw [-](-\textwidth-20,-0.8-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth-20,-0.8+0.2);
+\draw [-](-\textwidth+100, -0.8-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth+100, -0.8+0.2);
 
 % R1
-\draw [-](-\textwidth-30,-3.3) --  node[midway,fill=white, align=center]{\textit{$R_1(\texttt{"timeline"})$}}(-\textwidth+60, -3.3);
+\draw [-](-\textwidth-30,-3.3) --  node[midway,fill=white, align=center]{\textit{$R_1(\texttt{"timeline"})$}}(-\textwidth+64, -3.3);
 \draw [-](-\textwidth-30,-3.3-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth-30,-3.3+0.2);
-\draw [-](-\textwidth+60, -3.3-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth+60, -3.3+0.2);
+\draw [-](-\textwidth+64, -3.3-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth+64, -3.3+0.2);
 % R2
-\draw [-](-\textwidth+70,-3.3) --  node[midway,fill=white, align=center]{\textit{$R_2(\texttt{"post:\$postid"})$}}(-\textwidth+190, -3.3);
-\draw [-](-\textwidth+70,-3.3-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth+70,-3.3+0.2);
+\draw [-](-\textwidth+74,-3.3) --  node[midway,fill=white, align=center]{\textit{$R_2(\texttt{"post:\$postid"})$}}(-\textwidth+190, -3.3);
+\draw [-](-\textwidth+74,-3.3-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth+74,-3.3+0.2);
 \draw [-](-\textwidth+190, -3.3-0.2) --  node[midway,fill=none, align=left, anchor=south]{}(-\textwidth+190, -3.3+0.2);
 
 \end{tikzpicture}
-    \caption{Example where two concurrent client processes each submit two concurrent operations. The first client is completing operations from the Retwis \texttt{Post} function, while the second from the Retwis \texttt{ShowTimeline} function. Both functions touch the shared keys, \texttt{"post:\$postid"} and \texttt{"timeline"}, which are at different shards (1 and 2 respectively). Without coordination in the protocol, it is possible that $R_2$ arrives before $W_1$ at shard 1, and $W_2$ arrives before $R_1$ at shard 2. This would not provide a total order of operations and would result in $C_2$'s timeline showing a dangling posted object, violating the guarantees defined in \mdl{}.}
+    \caption{Example where two concurrent client processes each submit operations that touch shared keys. The first client issues concurrent operations from the Retwis \texttt{Post} function, while the second issues operations from the Retwis \texttt{ShowTimeline} function that have a real-time ordering guarantee between them. The keys \texttt{"post:\$postid"} and \texttt{"timeline"} are at different shards (1 and 2 respectively). Without coordination in the protocol, it is possible that $R_2$ arrives before $W_1$ at shard 1, and $W_2$ arrives before $R_1$ at shard 2. This would not provide a total order of operations and would result in $C_2$'s timeline showing a dangling posted object, violating the guarantees defined in \mdl{}.}
     \label{fig:concurrentbatches}
 \end{figure}
 
-To the best of our knowledge, Zookeeper~\cite{hunt2010zookeeper} is the
+Linearizability is a local property (or, composable), which means that every individual object in the system is linearizable if and only if the system as a whole is linearizable ~\cite{herlihy1990linearizability}. Locality makes constructing multi-sharded linearizable systems quite trivial: a multi-sharded system, where each shard is linearizable, is also linearizable as a whole.
+
+\mdl{} is not a local property. 
+% A system composed of two or more shards, where each individual \iocll{}, is not \iocll{} as a whole.
+A system composed of two or more shards, where each individual \iocll{} shard orders operations independently, can lead to violations of \MDL{}'s total order guarantee, as demonstrated in figure ~\ref{fig:concurrentbatches}. 
+This example comes directly from the Retwis codebase, where the \texttt{Post} and \texttt{ShowTimeline} functions are defined (the former is portrayed in full in figure ~\ref{fig:retwis-post2}). We next show how with the guarantees of IOC
+Linearizability in a multi-sharded setting lost, the users of this application could see observe strange behavior.
+
+Consider a common occurrence where \IOCL{} transformed versions of both \texttt{Post} and \texttt{ShowTimeline} are invoked concurrently by independent clients using the application, and the shared keys they touch reside at separate shards. Crucially, the concurrent operations issued by each function may arrive at their respective shards at any time. Finally, while there is a total order of operations that respects invocation order at each shard individually, there is no total order across the shards, or, in the system as a whole. Because of this, the second client sees a dangling object posted in a timeline, as described in section ~\ref{sec:motivation}.
+
+% Two processes each issue two
+% operations, one to key $X$ and the other to key $Y$, which reside on different
+% shards. Process 1 writes $X$ then $Y$, and process 2 reads $Y$ then $X$. Suppose $W_2$ precedes $R_1$ at shard $Y$, causing it to return $Y=1$. Combined with
+% process 2's issue-order, this implies $R_2$ must be serialized after $W_1$.
+% But since operations can arrive at the shards in an arbitrary order, $R_2$ may
+% precede $W_1$ and return $X=0$, violating \MDL{}.
+
+
+
+
+Because \IOCL isn't local, constructing multi-sharded \iocll{} systems is hard.
+There are several existing systems that could be used to provide
+\multidispatch{} linearizability on a single shard. We briefly describe them and then show how they fail to extend to multiple shards.
+
+\paragraph{Zookeeper.} To the best of our knowledge, Zookeeper~\cite{hunt2010zookeeper} is the
 only existing work to account for (in its consistency model) an 
 application process potentially issuing multiple operations concurrently. The authors denote it Asynchronous Linearizability
 (or A-Linearizability)~\cite{hunt2010zookeeper}. But despite its name,
 it differs from \MDL{} because Zookeeper allows
-reads to return stale (i.e., non-linearizable) values.
+reads to return stale (i.e., non-linearizable) values. Besides providing weaker consistency guarantees than \mdl{}, Zookeeper also only provides those guarantees for a single-shard, assuming client data is small and can fit on a single machine in memory database.
 
-\wl{This needs to be updated to mention Diego Ongaro's dissertation as well.}
-
-\true{To handle concurrent operations from the same process, Zookeeper uses
-per-process sequence numbers.} Sequence numbers are assigned in the client 
+\paragraph{Raft, etc.} To handle concurrent operations from the same process in the single shard setting, existing leader-based replicated-state-machine protocols (could) use
+per-process sequence numbers~\cite{ongaro2014raft,lamport1998paxos,oki1988vr} to guarantee \MDL{} on one shard. Sequence numbers are assigned in the client 
 library and increase monotonically. This provides sufficient information for
 the leader to ensure each process's operations enter the log in an
 order consistent with its issue order
 (e.g., by queuing operations in sequence-number order).
-This technique could be used with existing leader-based replicated-state-machine
-protocols~\cite{ongaro2014raft,lamport1998paxos,oki1988vr} to guarantee
-MDL on one shard.\footnote{Zookeeper can be forced to
+\footnote{Zookeeper can be forced to
 guarantee \MDL{} by issuing a \texttt{sync} operation before each read to prevent it from returning a stale value.}
 
-%\subsection{Why is this hard?}
-But these protocols fail to 
+\paragraph{Salus.} Salus is a block store that lets clients mount multiple volumes (similar to multiple shards) and preserves commit-order across operations. While this is akin to \mdl{} in multiple-shards, Salus only allows single writers per volume, thus eliminating cross client concurrency and trivially satisfying commit-order across multiple volumes.
+
+\ak{I would delete this paragraph.} These protocols fail to 
 guarantee \MDL{} across multiple shards for two reasons. First,
 as mentioned, multiple shards
 introduces the possibility for independent failures of operations. A first
@@ -251,17 +268,6 @@ its effects become visible to other processes. If both of these
 operations were issued concurrently from the same process, 
 this would violate \MDL{}'s suffix-closed failure semantics.
 
-Second, allowing shards to order operations independently can lead to
-violations of \MDL{}'s total order guarantee. For example, consider the
-case shown in Figure~\ref{fig:concurrentbatches}. Two processes each issue two
-operations, one to key $X$ and the other to key $Y$, which reside on different
-shards. Process 1 writes $X$ then $Y$, and process 2 reads $Y$ then $X$. Suppose $W_2$ precedes $R_1$ at shard $Y$, causing it to return $Y=1$. Combined with
-process 2's issue-order, this implies $R_2$ must be serialized after $W_1$.
-But since operations can arrive at the shards in an arbitrary order, $R_2$ may
-precede $W_1$ and return $X=0$, violating \MDL{}.
-\wl{The numbering, capitalization, etc should be unified between this example and the examples in Section 2. Maybe }
-
-%In the next section, we describe our new protocol, \sys{}, that tackles these
-%challenges and guarantees \multidispatch{} linearizability for a multi-shard
-%system.
-%
+In the next section, we describe our new protocol, \sys{}, that tackles these
+challenges and guarantees \multidispatch{} linearizability for a multi-shard
+system.
